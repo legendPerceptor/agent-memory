@@ -118,49 +118,30 @@ class MemoryService:
         self.memory_file.write_text(json.dumps(self.memories, indent=2, ensure_ascii=False))
     
     def _get_embedding(self, text: str) -> List[float]:
-        """获取文本的向量表示 - 使用真实的 OpenAI Embedding API"""
+        """获取文本的向量表示 - 使用批量 Embedding 服务（带缓存）"""
         
-        # 优先使用 OpenAI API（真实向量）
-        if OPENAI_AVAILABLE and OPENAI_API_KEY:
-            try:
-                import httpx
-                
-                # 获取代理配置
-                proxy = os.getenv("HTTPS_PROXY", "") or os.getenv("HTTP_PROXY", "")
-                
-                # 创建 OpenAI 客户端（通过代理）
-                if proxy:
-                    client = OpenAI(
-                        api_key=OPENAI_API_KEY,
-                        http_client=httpx.Client(proxy=proxy),
-                        timeout=30
-                    )
-                else:
-                    client = OpenAI(
-                        api_key=OPENAI_API_KEY,
-                        timeout=30
-                    )
-                
-                # 调用 Embedding API
-                response = client.embeddings.create(
-                    model=OPENAI_EMBEDDING_MODEL,
-                    input=text
-                )
-                
-                embedding = response.data[0].embedding
-                
-                # 验证向量维度
-                if len(embedding) != VECTOR_SIZE:
-                    print(f"⚠️  Embedding 维度不匹配: {len(embedding)} != {VECTOR_SIZE}")
-                
-                return embedding
-                
-            except Exception as e:
-                print(f"⚠️  OpenAI embedding 失败: {e}")
-                raise Exception(f"无法获取真实向量，请检查 OpenAI API 配置: {e}")
+        try:
+            # 使用批量 embedding 服务（自动缓存）
+            from batch_embedding import get_embedding
+            embedding = get_embedding(text)
+            
+            # 验证向量维度
+            if len(embedding) != VECTOR_SIZE:
+                print(f"⚠️  Embedding 维度不匹配: {len(embedding)} != {VECTOR_SIZE}")
+            
+            return embedding
+            
+        except Exception as e:
+            raise Exception(f"❌ 无法获取真实向量: {e}")
+    
+    def _get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
+        """批量获取 embedding（性能优化）"""
         
-        # 如果没有 OpenAI API key，报错
-        raise Exception("❌ 未配置 OPENAI_API_KEY，无法使用真实向量。请在 .env 文件中配置 OPENAI_API_KEY")
+        try:
+            from batch_embedding import get_embeddings
+            return get_embeddings(texts)
+        except Exception as e:
+            raise Exception(f"❌ 批量获取 embedding 失败: {e}")
     
     def remember(
         self,
