@@ -1,0 +1,93 @@
+{
+  "entities": [
+    {
+      "id": "7b185539",
+      "name": "远见",
+      "type": "person",
+      "attributes": {
+        "role": "用户"
+      },
+      "created_at": "2026-03-25T02:20:27.361029",
+      "updated_at": "2026-03-25T02:20:27.402329"
+    },
+    {
+      "id": "adab38f5",
+      "name": "英雄联盟",
+      "type": "concept",
+      "attributes": {
+        "type": "游戏"
+      },
+      "created_at": "2026-03-25T02:20:27.361476",
+      "updated_at": "2026-03-25T02:20:27.402339"
+    },
+    {
+      "id": "0750a663",
+      "name": "阿卡丽",
+      "type": "person",
+      "attributes": {
+        "role": "助手"
+      },
+      "created_at": "2026-03-25T02:20:27.400841",
+      "updated_at": "2026-03-25T02:20:27.404966"
+    },
+    {
+      "id": "57a801f0",
+      "name": "远见喜",
+      "type": "person",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.404002",
+      "updated_at": "2026-03-25T02:20:27.404002"
+    },
+    {
+      "id": "56ac96da",
+      "name": "欢英雄",
+      "type": "person",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.404330",
+      "updated_at": "2026-03-25T02:20:27.404330"
+    },
+    {
+      "id": "6a1c801f",
+      "name": "联盟",
+      "type": "person",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.404647",
+      "updated_at": "2026-03-25T02:20:27.404647"
+    },
+    {
+      "id": "2ef96057",
+      "name": "是他的",
+      "type": "person",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.404989",
+      "updated_at": "2026-03-25T02:20:27.404989"
+    },
+    {
+      "id": "e2908196",
+      "name": "助手",
+      "type": "person",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.405312",
+      "updated_at": "2026-03-25T02:20:27.405312"
+    }
+  ],
+  "relations": [
+    {
+      "id": "b0c0ce92",
+      "source_id": "7b185539",
+      "target_id": "adab38f5",
+      "type": "related_to",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.401217"
+    },
+    {
+      "id": "e48eefd1",
+      "source_id": "7b185539",
+      "target_id": "0750a663",
+      "type": "knows",
+      "attributes": {},
+      "created_at": "2026-03-25T02:20:27.401786"
+    }
+  ],
+  "updated_at": "2026-03-25T02:20:27.405352"
+}
