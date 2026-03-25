@@ -1,29 +1,4 @@
 # Python
-<<<<<<< HEAD
-__pydir__/
-*.py[cod]
-*$py[class]
-*.so
-.Python build/
-develop-eggs/
-dist/
-downloads/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environments
-venv/
-ENV/
-env/
-=======
 __pycache__/
 *.py[cod]
 *$py.class
@@ -41,18 +16,24 @@ build/
 *.env.local
 .env.*.local
 
+# 缓存文件（不要上传）
+.cache/
+*.cache.json
+embeddings.json
+query_cache.json
+
 # 数据文件
 backups/
 *.tar.gz
 *.zip
-
-# Qdrant 数据
 qdrant/storage/
+knowledge_graph/graph.json
 
 # 测试文件
 test_*.py
-!test_basic.py
->>>>>>> 4cfd366 (Initial commit: Agent Memory vector system)
+.pytest_cache/
+.coverage
+htmlcov/
 
 # IDE
 .vscode/
@@ -61,30 +42,6 @@ test_*.py
 *.swo
 *~
 
-<<<<<<< HEAD
-# OS
-.DS_Store
-Thumbs.db
-
-# Sensitive files
-.env
-*.key
-secrets.json
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-*.tmp
-
-# Test files
-.pytest_cache/
-.coverage
-htmlcov/
-=======
 # 操作系统
 .DS_Store
 Thumbs.db
@@ -93,6 +50,9 @@ Thumbs.db
 *.tmp
 *.log
 *.bak
+logs/
+tmp/
+temp/
 
 # 备份文件
 *.backup
@@ -101,4 +61,3 @@ Thumbs.db
 # 不要提交的文档
 FINAL_SOLUTION.md
 HOW_I_USE_MEMORY.md
->>>>>>> 4cfd366 (Initial commit: Agent Memory vector system)
