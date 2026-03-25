@@ -248,8 +248,8 @@ ai-memory/
 ### Phase 2: 核心功能完善
 - [x] Qdrant 连接修复
 - [x] 真实 OpenAI Embedding
-- [ ] 记忆压缩功能
-- [ ] 性能优化
+- [x] 记忆压缩功能
+- [x] 性能优化
 
 ### Phase 3: 高级功能
 - [ ] 知识图谱记忆
