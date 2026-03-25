@@ -1,4 +1,5 @@
 # Python
+<<<<<<< HEAD
 __pydir__/
 *.py[cod]
 *$py[class]
@@ -22,6 +23,36 @@ wheels/
 venv/
 ENV/
 env/
+=======
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# 敏感配置
+.env
+*.env.local
+.env.*.local
+
+# 数据文件
+backups/
+*.tar.gz
+*.zip
+
+# Qdrant 数据
+qdrant/storage/
+
+# 测试文件
+test_*.py
+!test_basic.py
+>>>>>>> 4cfd366 (Initial commit: Agent Memory vector system)
 
 # IDE
 .vscode/
@@ -30,6 +61,7 @@ env/
 *.swo
 *~
 
+<<<<<<< HEAD
 # OS
 .DS_Store
 Thumbs.db
@@ -52,3 +84,21 @@ temp/
 .pytest_cache/
 .coverage
 htmlcov/
+=======
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.log
+*.bak
+
+# 备份文件
+*.backup
+*_backup_*.json
+
+# 不要提交的文档
+FINAL_SOLUTION.md
+HOW_I_USE_MEMORY.md
+>>>>>>> 4cfd366 (Initial commit: Agent Memory vector system)

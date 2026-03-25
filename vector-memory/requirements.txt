@@ -1,3 +1,7 @@
 qdrant-client>=1.7.0
+<<<<<<< HEAD
 openai>=2.0.0
 python-dotenv>=1.0.0
+=======
+sentence-transformers>=2.2.0
+>>>>>>> 4cfd366 (Initial commit: Agent Memory vector system)

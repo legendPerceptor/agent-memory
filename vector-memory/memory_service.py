@@ -38,7 +38,9 @@ if env_file.exists():
 MEMORY_DIR = Path.home() / ".openclaw" / "workspace" / "memory"
 COLLECTION_NAME = "agent_memories"
 VECTOR_SIZE = 1536  # text-embedding-3-small
-QDRANT_HOST = os.getenv("QDRANT_HOST", "aicreatorvault-qdrant-1")
+
+# ⚠️ 使用 Agent Memory 专用 Qdrant 容器（独立于 aicreatorvault）
+QDRANT_HOST = os.getenv("QDRANT_HOST", "agent-memory-qdrant")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
@@ -116,51 +118,49 @@ class MemoryService:
         self.memory_file.write_text(json.dumps(self.memories, indent=2, ensure_ascii=False))
     
     def _get_embedding(self, text: str) -> List[float]:
-        """获取文本的向量表示 - 优先使用 OpenAI API"""
+        """获取文本的向量表示 - 使用真实的 OpenAI Embedding API"""
         
-        # 优先使用 OpenAI API
+        # 优先使用 OpenAI API（真实向量）
         if OPENAI_AVAILABLE and OPENAI_API_KEY:
             try:
                 import httpx
-                # 使用代理访问 OpenAI
-                proxies = {
-                    "http://": os.getenv("HTTP_PROXY", ""),
-                    "https://": os.getenv("HTTPS_PROXY", "")
-                }
-                client = OpenAI(
-                    api_key=OPENAI_API_KEY,
-                    base_url="https://api.openai.com/v1",
-                    http_client=httpx.Client(proxy=os.getenv("HTTPS_PROXY", "")),
-                    timeout=30
-                )
                 
+                # 获取代理配置
+                proxy = os.getenv("HTTPS_PROXY", "") or os.getenv("HTTP_PROXY", "")
+                
+                # 创建 OpenAI 客户端（通过代理）
+                if proxy:
+                    client = OpenAI(
+                        api_key=OPENAI_API_KEY,
+                        http_client=httpx.Client(proxy=proxy),
+                        timeout=30
+                    )
+                else:
+                    client = OpenAI(
+                        api_key=OPENAI_API_KEY,
+                        timeout=30
+                    )
+                
+                # 调用 Embedding API
                 response = client.embeddings.create(
                     model=OPENAI_EMBEDDING_MODEL,
                     input=text
                 )
                 
-                return response.data[0].embedding
+                embedding = response.data[0].embedding
+                
+                # 验证向量维度
+                if len(embedding) != VECTOR_SIZE:
+                    print(f"⚠️  Embedding 维度不匹配: {len(embedding)} != {VECTOR_SIZE}")
+                
+                return embedding
+                
             except Exception as e:
                 print(f"⚠️  OpenAI embedding 失败: {e}")
-                print("使用伪向量回退")
+                raise Exception(f"无法获取真实向量，请检查 OpenAI API 配置: {e}")
         
-        # 回退：使用简单的哈希作为伪向量（仅用于演示）
-        hash_obj = hashlib.sha256(text.encode())
-        hash_bytes = hash_obj.digest()
-        
-        # 生成 1536 维向量（text-embedding-3-small）
-        vector = []
-        for i in range(VECTOR_SIZE):
-            byte_idx = i % len(hash_bytes)
-            next_byte_idx = (byte_idx + 1) % len(hash_bytes)
-            vector.append((hash_bytes[byte_idx] + hash_bytes[next_byte_idx]) / 510.0)
-        
-        # 归一化
-        magnitude = sum(v ** 2 for v in vector) ** 0.5
-        if magnitude > 0:
-            vector = [v / magnitude for v in vector]
-        
-        return vector
+        # 如果没有 OpenAI API key，报错
+        raise Exception("❌ 未配置 OPENAI_API_KEY，无法使用真实向量。请在 .env 文件中配置 OPENAI_API_KEY")
     
     def remember(
         self,

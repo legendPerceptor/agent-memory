@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # Agent Memory 专用 Qdrant
+  agent-memory-qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agent-memory-qdrant
+    restart: unless-stopped
+    ports:
+      - "6334:6333"  # 改用 6334 避免与 aicreatorvault 冲突
+      - "6335:6334"  # gRPC 端口
+    volumes:
+      # 持久化数据存储
+      - agent_memory_qdrant_data:/qdrant/storage
+      # 配置文件（可选）
+      - ./qdrant/config:/qdrant/config:ro
+    networks:
+      - proxy-net
+    environment:
+      # 允许所有来源（容器内部网络）
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "description=Agent Memory Vector Database"
+      - "owner=openclaw-agent"
+
+  # 可选：Qdrant 备份服务
+  qdrant-backup:
+    image: alpine:latest
+    container_name: agent-memory-backup
+    restart: "no"
+    volumes:
+      - agent_memory_qdrant_data:/data
+      - ./backups:/backups
+    command: >
+      sh -c "
+        apk add --no-cache tar &&
+        while true; do
+          TIMESTAMP=$$(date +%Y%m%d_%H%M%S) &&
+          tar -czf /backups/qdrant_backup_$$TIMESTAMP.tar.gz -C /data . &&
+          echo \"Backup created: qdrant_backup_$$TIMESTAMP.tar.gz\" &&
+          sleep 86400
+        done
+      "
+    depends_on:
+      - agent-memory-qdrant
+
+volumes:
+  agent_memory_qdrant_data:
+    driver: local
+    labels:
+      - "description=Agent Memory Qdrant Persistent Data"
+
+networks:
+  proxy-net:
+    external: true
