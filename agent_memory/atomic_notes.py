@@ -11,30 +11,16 @@ Zettelkasten 原子笔记系统
 灵感来源：A-MEM (arXiv:2502.12110) - Zettelkasten method
 """
 
-import os
 import re
 import uuid
 import hashlib
 from datetime import datetime
 from typing import List, Dict, Optional, Set
-from pathlib import Path
 from dataclasses import dataclass, asdict
 import json
 
-# 加载环境变量
-env_file = Path(__file__).parent.parent / ".env"
-if env_file.exists():
-    with open(env_file) as f:
-        for line in f:
-            if "=" in line and not line.startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value
-
-# 导入基础记忆服务
-from memory_service import MemoryService, COLLECTION_NAME
-
-# 关键词提取
-from hybrid_rag import HybridRAG
+from .memory_service import MemoryService
+from .hybrid_rag import HybridRAG
 
 
 @dataclass
@@ -406,8 +392,8 @@ def main():
     # 长内容（自动分解）
     long_content = """
     远见购买了一个新的 MiniMax Token Plan。这个计划包含 1000 万 tokens，
-    每月费用为 100 元。计划在 2026-04-01 激活，有效期 12 个月。
-    MiniMax 的 API 支持多种模型，包括 abab6.5s-chat 和 abab6.5g-chat。
+    年费 490 元。计划在 2026-04-01 激活，有效期 12 个月。
+    MiniMax 的 API 支持多种模型，包括 Minimax-M2.7 和 Minimax-M2.5。
     """
     
     note_ids = zk.remember_atomic(

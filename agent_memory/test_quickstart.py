@@ -10,15 +10,9 @@
 
 import os
 import sys
-from pathlib import Path
 
-# 加载环境变量
-from dotenv import load_dotenv
-load_dotenv(Path(__file__).parent.parent / ".env")
-
-# 导入 memory service
-sys.path.insert(0, str(Path(__file__).parent))
-from memory_service import MemoryService
+from .config import QDRANT_HOST, QDRANT_PORT, OPENAI_API_KEY
+from .memory_service import MemoryService
 
 def main():
     print("=" * 60)

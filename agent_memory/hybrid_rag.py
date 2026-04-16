@@ -11,27 +11,13 @@ Hybrid RAG 检索系统
 灵感来源：Tiger Data (2026-01) - "Building AI Agents with Persistent Memory"
 """
 
-import os
 import re
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Set
-from pathlib import Path
 import math
-
-# 加载环境变量
-env_file = Path(__file__).parent.parent / ".env"
-if env_file.exists():
-    with open(env_file) as f:
-        for line in f:
-            if "=" in line and not line.startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value
-
-# 导入基础记忆服务
-from memory_service import MemoryService, QDRANT_HOST, QDRANT_PORT, COLLECTION_NAME
-
-# 关键词提取（简单版，可替换为更复杂的 NLP）
 import string
+
+from .memory_service import MemoryService
 
 
 class HybridRAG:

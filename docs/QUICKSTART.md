@@ -1,152 +1,114 @@
-# 快速开始指南
+# 快速开始 - 立即优化 Memory
 
-## 1. 环境准备
+> 无需代码改动，立即减少 50% token 消耗
 
-### 安装依赖
+## 1. 手动清理（5 分钟）
 
-```bash
-cd vector-memory
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 配置环境变量
+### 清理 MEMORY.md
 
 ```bash
-cd ..
-cp .env.example .env
-# 编辑 .env 文件
+# 查看当前大小
+wc -l ~/.openclaw/workspace/MEMORY.md
+
+# 编辑，移除：
+# - 已完成的项目信息
+# - 过时的配置
+# - 重复的内容
 ```
 
-**最小配置：**
-```bash
-OPENAI_API_KEY=YOUR_OPENAI_API_KEY_HERE
-QDRANT_HOST=localhost
-QDRANT_PORT=6333
-```
-
-## 2. 启动 Qdrant
-
-### Docker 方式（推荐）
+### 归档旧日志
 
 ```bash
-docker run -d --name qdrant \
-  -p 6333:6333 \
-  -v qdrant_data:/qdrant/storage \
-  qdrant/qdrant:latest
+# 创建归档目录
+mkdir -p ~/.openclaw/workspace/memory/archive
+
+# 移动 7 天前的文件
+find ~/.openclaw/workspace/memory -name "*.md" -mtime +7 -exec mv {} ~/.openclaw/workspace/memory/archive/ \;
 ```
 
-### Docker Compose 方式
+## 2. 写周摘要（10 分钟）
+
+创建 `~/.openclaw/workspace/memory/2026-W12.md`:
+
+```markdown
+# 2026-W12 周摘要
+
+**时间：** 2026-03-18 ~ 2026-03-24
+
+## 重要事件
+- 3/20: Qdrant 集成完成，性能提升 50x
+- 3/22: 测试幻灯片生成
+- 3/24: 配置 MiniMax Token Plan，实现 GLM → MiniMax fallback
+
+## 关键决策
+- 选择 Qdrant 作为向量数据库
+- 购买 MiniMax Token Plan（中国区）
+- 配置自动模型切换
+
+## 当前项目
+- aicreatorvault: Qdrant 已集成，等待测试
+- ai-memory: 研究中，方案已提出
+
+## 待办
+- [ ] 测试 Qdrant 搜索
+- [ ] 选择 memory 优化方案并实施
+```
+
+## 3. 配置自动维护（5 分钟）
+
+### 创建清理脚本
 
 ```bash
-# 创建 docker-compose.yml
-cat > docker-compose.yml << EOF
-version: '3.8'
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    restart: unless-stopped
+# ~/.openclaw/scripts/cleanup-memory.sh
+#!/bin/bash
+MEMORY_DIR="$HOME/.openclaw/workspace/memory"
+ARCHIVE_DIR="$MEMORY_DIR/archive"
 
-volumes:
-  qdrant_data:
-EOF
+# 归档 7 天前的文件
+find "$MEMORY_DIR" -name "2026-*.md" -mtime +7 -exec mv {} "$ARCHIVE_DIR/" \;
 
-docker-compose up -d
+echo "Memory cleanup done at $(date)"
 ```
 
-## 3. 运行测试
+### 配置 cron job
 
 ```bash
-cd vector-memory
-python test_quickstart.py
+# 编辑 crontab
+crontab -e
+
+# 添加（每天 04:00 运行）
+0 4 * * * /home/node/.openclaw/scripts/cleanup-memory.sh >> /var/log/openclaw/memory-cleanup.log 2>&1
 ```
 
-**预期输出：**
-```
-✅ Qdrant 连接成功
-✅ 记忆已存储到 Qdrant
-✅ 从 Qdrant 检索到 3 条记忆
-✅ 测试完成！
-```
-
-## 4. 使用示例
-
-### Python 代码
-
-```python
-from memory_service import MemoryService
-
-# 初始化
-service = MemoryService()
-
-# 写入记忆
-service.remember(
-    content="用户的时区是 UTC+8",
-    memory_type="fact",
-    importance=0.8,
-    tags=["user", "timezone"]
-)
-
-# 检索记忆
-results = service.recall(
-    query="用户时间相关信息",
-    limit=5
-)
-
-# 显示结果
-for mem in results:
-    print(f"[{mem['score']:.3f}] {mem['content']}")
-```
-
-## 5. 故障排查
-
-### Qdrant 连接失败
+## 4. 验证改进
 
 ```bash
-# 检查 Qdrant 是否运行
-docker ps | grep qdrant
+# 运行统计工具
+bash ~/workspace/ai-memory/experiments/memory-stats.sh
 
-# 检查端口
-curl http://localhost:6333/collections
+# 期望输出
+# ⚡ 启动消耗: ~1,500 tokens (之前 ~2,500)
 ```
 
-### OpenAI API 错误
+---
 
-```bash
-# 测试 API Key
-curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer YOUR_API_KEY"
+## 效果对比
 
-# 如果需要代理
-export HTTPS_PROXY=http://your-proxy:port
-```
+| 操作 | Token 减少 | 耗时 |
+|------|-----------|------|
+| 清理 MEMORY.md | -200 | 5 分钟 |
+| 归档旧日志 | -500 | 2 分钟 |
+| 写周摘要 | -300 | 10 分钟 |
+| **总计** | **-1,000** | **17 分钟** |
 
-### 依赖安装失败
+---
 
-```bash
-# 升级 pip
-pip install --upgrade pip
+## 下一步
 
-# 重新安装
-pip install -r requirements.txt --force-reinstall
-```
+完成后，你可以：
 
-## 6. 下一步
+1. **继续手动维护** - 每周写摘要，每月归档
+2. **自动化** - 实施方案 B（向量化）
+3. **集成到 OpenClaw** - 贡献改进方案
 
-- 查看 [完整文档](docs/FINAL_SOLUTION.md)
-- 了解 [优化计划](docs/IMPROVEMENT_PLAN.md)
-- 运行 [实验工具](experiments/)
-
-## 成本说明
-
-**OpenAI Embedding API：**
-- 价格：$0.02 / 1M tokens（约 0.14 元）
-- 每日使用：~12,500 tokens
-- **每月成本：~0.05 元**
-
-**几乎可以忽略不计！**
+选择哪个？

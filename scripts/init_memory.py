@@ -6,18 +6,12 @@ OpenClaw 记忆自动启动脚本
 位置：~/.openclaw/scripts/init_memory.py
 """
 
-import os
 import sys
 from pathlib import Path
-from datetime import datetime
-
-# 添加 AI Memory 路径
-AI_MEMORY_PATH = Path.home() / ".openclaw" / "workspace" / "ai-memory"
-sys.path.insert(0, str(AI_MEMORY_PATH))
 
 # 导入记忆服务
 try:
-    from integrate_to_openclaw import get_memory_service
+    from agent_memory.integrate import get_memory_service
     MEMORY_AVAILABLE = True
 except Exception as e:
     print(f"⚠️  记忆服务导入失败: {e}")

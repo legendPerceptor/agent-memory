@@ -16,8 +16,6 @@
 - 索引：实体索引、关系索引、类型索引
 """
 
-import os
-import sys
 import json
 import re
 from pathlib import Path
@@ -27,11 +25,9 @@ from collections import defaultdict
 from enum import Enum
 import uuid
 
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent))
+from .config import GRAPH_DIR
 
 # 配置
-GRAPH_DIR = Path.home() / ".openclaw" / "workspace" / "ai-memory" / "knowledge_graph"
 GRAPH_FILE = GRAPH_DIR / "graph.json"
 
 # 实体类型

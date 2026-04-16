@@ -18,18 +18,15 @@ Token 节省：90%
 """
 
 import os
-import sys
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import json
 import re
 
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent.parent / "vector-memory"))
+from .config import MEMORY_DIR
 
 # 配置
-MEMORY_DIR = Path.home() / ".openclaw" / "workspace" / "memory"
 ARCHIVE_DIR = MEMORY_DIR / "archive"
 COMPRESSED_DIR = MEMORY_DIR / "compressed"
 
@@ -256,22 +253,13 @@ class MemoryCompressor:
     
     def _llm_summary(self, content: str, level: str) -> str:
         """使用 LLM 生成摘要"""
-        
+
         try:
             import openai
-            
-            # 读取配置
-            from pathlib import Path
-            env_file = Path(__file__).parent.parent / ".env"
-            if env_file.exists():
-                with open(env_file) as f:
-                    for line in f:
-                        if "=" in line and not line.startswith("#"):
-                            key, value = line.strip().split("=", 1)
-                            os.environ[key] = value
-            
+            from .config import OPENAI_API_KEY
+
             client = openai.OpenAI(
-                api_key=os.getenv("OPENAI_API_KEY"),
+                api_key=OPENAI_API_KEY,
                 base_url=os.getenv("OPENAI_BASE_URL")
             )
             

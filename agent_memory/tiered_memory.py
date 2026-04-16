@@ -12,36 +12,18 @@
 灵感来源：MemGPT / Letta
 """
 
-import os
 import json
 import hashlib
+import uuid
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Any
 from pathlib import Path
 from collections import deque
-import uuid
 
-# 解决代理问题
-os.environ["NO_PROXY"] = "*"
-os.environ["no_proxy"] = "*"
-
-# 加载环境变量
-env_file = Path(__file__).parent.parent / ".env"
-if env_file.exists():
-    with open(env_file) as f:
-        for line in f:
-            if "=" in line and not line.startswith("#"):
-                key, value = line.strip().split("=", 1)
-                os.environ[key] = value
-
-# 配置
-MEMORY_DIR = Path.home() / ".openclaw" / "workspace" / "memory"
-COLLECTION_NAME = "agent_memories"
-VECTOR_SIZE = 1536
-QDRANT_HOST = os.getenv("QDRANT_HOST", "aicreatorvault-qdrant-1")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+from .config import (
+    MEMORY_DIR, COLLECTION_NAME, VECTOR_SIZE,
+    QDRANT_HOST, QDRANT_PORT, OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL,
+)
 
 # Qdrant 客户端
 try:
@@ -64,76 +46,75 @@ except ImportError:
 class CoreMemory:
     """
     Level 1: 核心记忆
-    
+
     特点：
     - 始终在 context window 中
     - 存储关键信息（用户档案、偏好、当前任务）
     - 容量有限（~2000 tokens）
     """
-    
+
     def __init__(self, memory_file: Path = None):
         self.memory_file = memory_file or MEMORY_DIR / "core_memory.json"
         self.blocks = self._load()
-        
+
         # 默认块
         if "user_profile" not in self.blocks:
             self.blocks["user_profile"] = {
                 "label": "用户档案",
                 "value": "",
-                "limit": 500  # 字符限制
+                "limit": 500
             }
-        
+
         if "preferences" not in self.blocks:
             self.blocks["preferences"] = {
                 "label": "用户偏好",
                 "value": "",
                 "limit": 500
             }
-        
+
         if "current_task" not in self.blocks:
             self.blocks["current_task"] = {
                 "label": "当前任务",
                 "value": "",
                 "limit": 1000
             }
-    
+
     def _load(self) -> Dict:
         """加载核心记忆"""
         if self.memory_file.exists():
             return json.loads(self.memory_file.read_text())
         return {}
-    
+
     def _save(self):
         """保存核心记忆"""
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(json.dumps(self.blocks, indent=2, ensure_ascii=False))
-    
+
     def update(self, block_name: str, value: str):
         """更新记忆块"""
         if block_name in self.blocks:
-            # 检查长度限制
             limit = self.blocks[block_name].get("limit", 1000)
             if len(value) > limit:
                 print(f"⚠️  内容超过限制 ({len(value)} > {limit})，将被截断")
                 value = value[:limit]
-            
+
             self.blocks[block_name]["value"] = value
             self._save()
             print(f"✅ 核心记忆已更新: {block_name}")
         else:
             print(f"⚠️  未知的记忆块: {block_name}")
-    
+
     def append(self, block_name: str, content: str):
         """追加内容到记忆块"""
         if block_name in self.blocks:
             current = self.blocks[block_name]["value"]
             new_value = f"{current}\n{content}".strip()
             self.update(block_name, new_value)
-    
+
     def get(self, block_name: str) -> str:
         """获取记忆块内容"""
         return self.blocks.get(block_name, {}).get("value", "")
-    
+
     def get_all(self) -> str:
         """获取所有核心记忆（用于 context）"""
         lines = []
@@ -143,28 +124,27 @@ class CoreMemory:
                 lines.append(block["value"])
                 lines.append("")
         return "\n".join(lines)
-    
+
     def count_tokens(self) -> int:
         """估算 token 数量"""
         text = self.get_all()
-        # 粗略估算：1 token ≈ 4 字符
         return len(text) // 4
 
 
 class WorkingMemory:
     """
     Level 2: 工作记忆
-    
+
     特点：
     - 存储最近对话
     - 自动轮换（FIFO）
     - 容量固定（最近 50 条）
     """
-    
+
     def __init__(self, max_messages: int = 50):
         self.max_messages = max_messages
         self.messages = deque(maxlen=max_messages)
-    
+
     def add(self, role: str, content: str, metadata: Dict = None):
         """添加消息"""
         message = {
@@ -175,19 +155,19 @@ class WorkingMemory:
             "metadata": metadata or {}
         }
         self.messages.append(message)
-    
+
     def get_recent(self, n: int = 10) -> List[Dict]:
         """获取最近 n 条消息"""
         return list(self.messages)[-n:]
-    
+
     def get_all(self) -> List[Dict]:
         """获取所有消息"""
         return list(self.messages)
-    
+
     def clear(self):
         """清空工作记忆"""
         self.messages.clear()
-    
+
     def count_tokens(self, n: int = None) -> int:
         """估算 token 数量"""
         messages = self.get_recent(n) if n else self.get_all()
@@ -198,17 +178,17 @@ class WorkingMemory:
 class RecallMemory:
     """
     Level 3: 回忆记忆
-    
+
     特点：
     - 完整历史记录
     - 向量索引
     - 语义检索
     """
-    
+
     def __init__(self):
         self.client = None
         self.use_qdrant = False
-        
+
         if QDRANT_AVAILABLE:
             try:
                 self.client = QdrantClient(
@@ -222,17 +202,17 @@ class RecallMemory:
                 print(f"✅ Recall Memory 连接成功: {QDRANT_HOST}:{QDRANT_PORT}")
             except Exception as e:
                 print(f"⚠️  Recall Memory 连接失败: {e}")
-        
+
         # 回退：文件存储
         self.memory_file = MEMORY_DIR / "recall_memory.json"
         self.memories = self._load_memories()
-    
+
     def _init_collection(self):
         """初始化 Qdrant collection"""
         try:
             collections = self.client.get_collections().collections
             exists = any(c.name == COLLECTION_NAME for c in collections)
-            
+
             if not exists:
                 self.client.create_collection(
                     collection_name=COLLECTION_NAME,
@@ -244,40 +224,41 @@ class RecallMemory:
                 print(f"✅ 创建 collection: {COLLECTION_NAME}")
         except Exception as e:
             raise Exception(f"初始化 collection 失败: {e}")
-    
+
     def _load_memories(self) -> List[Dict]:
         """从文件加载记忆"""
         if self.memory_file.exists():
             return json.loads(self.memory_file.read_text())
         return []
-    
+
     def _save_memories(self):
         """保存记忆到文件"""
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(json.dumps(self.memories, indent=2, ensure_ascii=False))
-    
+
     def _get_embedding(self, text: str) -> List[float]:
         """获取文本的向量表示"""
-        
+        import os
+        import httpx
+
         if OPENAI_AVAILABLE and OPENAI_API_KEY:
             try:
-                import httpx
                 client = OpenAI(
                     api_key=OPENAI_API_KEY,
                     base_url="https://api.openai.com/v1",
                     http_client=httpx.Client(proxy=os.getenv("HTTPS_PROXY", "")),
                     timeout=30
                 )
-                
+
                 response = client.embeddings.create(
                     model=OPENAI_EMBEDDING_MODEL,
                     input=text
                 )
-                
+
                 return response.data[0].embedding
             except Exception as e:
                 print(f"⚠️  OpenAI embedding 失败: {e}")
-        
+
         # 回退：伪向量
         hash_obj = hashlib.sha256(text.encode())
         hash_bytes = hash_obj.digest()
@@ -286,13 +267,13 @@ class RecallMemory:
             byte_idx = i % len(hash_bytes)
             next_byte_idx = (byte_idx + 1) % len(hash_bytes)
             vector.append((hash_bytes[byte_idx] + hash_bytes[next_byte_idx]) / 510.0)
-        
+
         magnitude = sum(v ** 2 for v in vector) ** 0.5
         if magnitude > 0:
             vector = [v / magnitude for v in vector]
-        
+
         return vector
-    
+
     def remember(
         self,
         content: str,
@@ -301,10 +282,10 @@ class RecallMemory:
         tags: List[str] = None
     ) -> str:
         """记录回忆"""
-        
+
         memory_id = str(uuid.uuid4())
         short_id = hashlib.md5(f"{content}{datetime.now().isoformat()}".encode()).hexdigest()[:12]
-        
+
         memory = {
             "id": short_id,
             "qdrant_id": memory_id,
@@ -315,11 +296,11 @@ class RecallMemory:
             "created_at": datetime.now().isoformat(),
             "access_count": 0
         }
-        
+
         if self.use_qdrant:
             try:
                 vector = self._get_embedding(content)
-                
+
                 self.client.upsert(
                     collection_name=COLLECTION_NAME,
                     points=[
@@ -339,9 +320,9 @@ class RecallMemory:
             self.memories.append(memory)
             self._save_memories()
             print(f"✅ 回忆已存储到文件: {short_id}")
-        
+
         return short_id
-    
+
     def recall(
         self,
         query: str,
@@ -350,13 +331,13 @@ class RecallMemory:
         memory_type: Optional[str] = None
     ) -> List[Dict]:
         """检索回忆"""
-        
+
         if self.use_qdrant:
             try:
                 vector = self._get_embedding(query)
-                
+
                 from qdrant_client.models import Filter, FieldCondition, Range
-                
+
                 conditions = []
                 if min_importance > 0:
                     conditions.append(
@@ -365,14 +346,14 @@ class RecallMemory:
                             range=Range(gte=min_importance)
                         )
                     )
-                
+
                 results = self.client.query_points(
                     collection_name=COLLECTION_NAME,
                     query=vector,
                     limit=limit,
                     query_filter=Filter(must=conditions) if conditions else None
                 )
-                
+
                 memories = [
                     {
                         "id": str(point.id),
@@ -381,39 +362,39 @@ class RecallMemory:
                     }
                     for point in results.points
                 ]
-                
+
                 print(f"✅ 从 Qdrant 检索到 {len(memories)} 条回忆")
                 return memories
-                
+
             except Exception as e:
                 print(f"⚠️  Qdrant 检索失败: {e}")
-        
+
         # 回退：文件搜索
         scored_memories = []
         query_words = set(query.lower().split())
-        
+
         for memory in self.memories:
             content_lower = memory["content"].lower()
             score = 0.0
-            
+
             for word in query_words:
                 if word in content_lower:
                     score += 1.0
-            
+
             score *= memory.get("importance", 0.5)
-            
+
             if memory_type and memory.get("type") != memory_type:
                 continue
-            
+
             if score > 0 and memory.get("importance", 0) >= min_importance:
                 memory_copy = memory.copy()
                 memory_copy["score"] = score
                 scored_memories.append(memory_copy)
-        
+
         scored_memories.sort(key=lambda x: x["score"], reverse=True)
         print(f"✅ 从文件检索到 {len(scored_memories[:limit])} 条回忆")
         return scored_memories[:limit]
-    
+
     def stats(self) -> Dict:
         """统计信息"""
         if self.use_qdrant:
@@ -426,7 +407,7 @@ class RecallMemory:
                 }
             except:
                 pass
-        
+
         return {
             "storage": "file",
             "count": len(self.memories),
@@ -437,20 +418,20 @@ class RecallMemory:
 class ArchivalMemory:
     """
     Level 4: 归档记忆
-    
+
     特点：
     - 压缩摘要
     - 长期存储
     - 低频访问
     """
-    
+
     def __init__(self):
         self.archive_dir = MEMORY_DIR / "archive"
         self.archive_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def archive_memories(self, memories: List[Dict], summary: str):
         """归档记忆"""
-        
+
         archive_entry = {
             "id": str(uuid.uuid4())[:12],
             "summary": summary,
@@ -461,17 +442,16 @@ class ArchivalMemory:
                 "end": max(m["created_at"] for m in memories)
             }
         }
-        
-        # 保存归档
+
         archive_file = self.archive_dir / f"{archive_entry['id']}.json"
         archive_file.write_text(json.dumps({
             "entry": archive_entry,
             "memories": memories
         }, indent=2, ensure_ascii=False))
-        
+
         print(f"✅ 已归档 {len(memories)} 条记忆: {archive_entry['id']}")
         return archive_entry["id"]
-    
+
     def list_archives(self) -> List[Dict]:
         """列出所有归档"""
         archives = []
@@ -484,25 +464,18 @@ class ArchivalMemory:
 class TieredMemory:
     """
     分层记忆系统
-    
+
     整合四个层级的记忆存储
     """
-    
+
     def __init__(self):
-        # Level 1: 核心记忆
         self.core = CoreMemory()
-        
-        # Level 2: 工作记忆
         self.working = WorkingMemory()
-        
-        # Level 3: 回忆记忆
         self.recall_mem = RecallMemory()
-        
-        # Level 4: 归档记忆
         self.archival = ArchivalMemory()
-        
+
         print("✅ 分层记忆系统已初始化")
-    
+
     def remember(
         self,
         content: str,
@@ -511,19 +484,8 @@ class TieredMemory:
         tags: List[str] = None,
         level: str = "recall"
     ):
-        """
-        记录记忆
-        
-        Args:
-            content: 记忆内容
-            memory_type: fact | event | preference | decision
-            importance: 0.0-1.0
-            tags: 标签列表
-            level: core | working | recall
-        """
-        
+        """记录记忆"""
         if level == "core":
-            # 核心记忆需要指定块名
             print("⚠️  核心记忆需要指定块名，使用 update_core() 方法")
             return None
         elif level == "working":
@@ -531,52 +493,36 @@ class TieredMemory:
             return "working"
         else:
             return self.recall_mem.remember(content, memory_type, importance, tags)
-    
+
     def update_core(self, block_name: str, value: str):
         """更新核心记忆"""
         self.core.update(block_name, value)
-    
+
     def recall(
         self,
         query: str,
         context_budget: int = 4000,
         min_importance: float = 0.0
     ) -> Dict[str, Any]:
-        """
-        智能检索记忆
-        
-        Args:
-            query: 查询文本
-            context_budget: token 预算
-            min_importance: 最小重要性
-        
-        Returns:
-            {
-                "core": str,          # 核心记忆
-                "working": List[Dict], # 工作记忆
-                "recall": List[Dict],  # 回忆记忆
-                "tokens_used": int     # 消耗的 token
-            }
-        """
-        
+        """智能检索记忆"""
         result = {
             "core": "",
             "working": [],
             "recall": [],
             "tokens_used": 0
         }
-        
+
         remaining_budget = context_budget
-        
+
         # 1. 加载核心记忆 (始终包含)
         core_text = self.core.get_all()
         core_tokens = self.core.count_tokens()
-        
+
         if core_tokens <= remaining_budget:
             result["core"] = core_text
             result["tokens_used"] += core_tokens
             remaining_budget -= core_tokens
-        
+
         # 2. 加载工作记忆 (最近对话)
         working_messages = self.working.get_recent(10)
         for msg in reversed(working_messages):
@@ -587,7 +533,7 @@ class TieredMemory:
                 remaining_budget -= msg_tokens
             else:
                 break
-        
+
         # 3. 检索回忆记忆 (语义搜索)
         if remaining_budget > 500:
             recall_results = self.recall_mem.recall(
@@ -595,7 +541,7 @@ class TieredMemory:
                 limit=10,
                 min_importance=min_importance
             )
-            
+
             for mem in recall_results:
                 mem_tokens = len(mem["content"]) // 4
                 if mem_tokens <= remaining_budget:
@@ -604,36 +550,31 @@ class TieredMemory:
                     remaining_budget -= mem_tokens
                 else:
                     break
-        
+
         return result
-    
+
     def get_context(self, query: str = "", max_tokens: int = 4000) -> str:
-        """
-        获取完整的 context 文本
-        
-        用于直接注入到 LLM prompt
-        """
-        
+        """获取完整的 context 文本"""
         result = self.recall(query, context_budget=max_tokens)
-        
+
         context_parts = []
-        
+
         if result["core"]:
             context_parts.append("=== 核心记忆 ===")
             context_parts.append(result["core"])
-        
+
         if result["working"]:
             context_parts.append("\n=== 最近对话 ===")
             for msg in result["working"]:
                 context_parts.append(f"{msg['role']}: {msg['content']}")
-        
+
         if result["recall"]:
             context_parts.append("\n=== 相关记忆 ===")
             for mem in result["recall"]:
                 context_parts.append(f"- [{mem.get('score', 0):.2f}] {mem['content']}")
-        
+
         return "\n".join(context_parts)
-    
+
     def stats(self) -> Dict:
         """统计信息"""
         return {
@@ -657,42 +598,36 @@ if __name__ == "__main__":
     print("=" * 60)
     print("分层记忆系统测试")
     print("=" * 60)
-    
-    # 初始化
+
     memory = TieredMemory()
     print()
-    
-    # 测试核心记忆
+
     print("📝 测试核心记忆...")
     memory.update_core("user_profile", "姓名: 远见\n时区: UTC+8\n邮箱: test@example.com")
     memory.update_core("preferences", "偏好简洁回复\n喜欢英雄联盟")
     print()
-    
-    # 测试工作记忆
+
     print("📝 测试工作记忆...")
     memory.working.add("user", "你好")
     memory.working.add("assistant", "你好！有什么可以帮助你的？")
     memory.working.add("user", "帮我配置 MiniMax")
     print()
-    
-    # 测试回忆记忆
+
     print("📝 测试回忆记忆...")
     memory.remember("远见购买了 MiniMax Token Plan", "fact", 0.8, ["api", "minimax"])
     memory.remember("Qdrant 集成完成，性能提升 50x", "event", 0.9, ["performance"])
     print()
-    
-    # 统计
+
     print("📊 记忆统计:")
     stats = memory.stats()
     print(json.dumps(stats, indent=2, ensure_ascii=False))
     print()
-    
-    # 测试检索
+
     print("🔍 测试智能检索...")
     context = memory.get_context("API 配置", max_tokens=2000)
     print(context)
     print()
-    
+
     print("=" * 60)
     print("✅ 测试完成！")
     print("=" * 60)

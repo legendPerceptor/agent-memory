@@ -10,17 +10,11 @@ OpenClaw 记忆集成服务
 3. 支持智能检索和演化
 """
 
-import os
-import sys
 from pathlib import Path
-from datetime import datetime
-from typing import List, Dict, Optional
+from typing import Dict
 
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent / "vector-memory"))
-
-from tiered_memory import TieredMemory
-from memory_evolver import MemoryEvolver
+from .tiered_memory import TieredMemory
+from .memory_evolver import MemoryEvolver
 
 # OpenClaw 工作空间
 WORKSPACE = Path.home() / ".openclaw" / "workspace"

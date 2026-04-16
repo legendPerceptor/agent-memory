@@ -7,20 +7,9 @@
 
 import os
 import sys
-from pathlib import Path
-from dotenv import load_dotenv
 
-# 加载 .env
-env_path = Path(__file__).parent / ".env"
-if env_path.exists():
-    load_dotenv(env_path)
-    print(f"✅ 加载配置: {env_path}")
-else:
-    print(f"⚠️  配置文件不存在: {env_path}")
-
-# 导入 memory service
-sys.path.insert(0, str(Path(__file__).parent / "vector-memory"))
-from memory_service import MemoryService
+from .config import OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL
+from .memory_service import MemoryService
 
 def main():
     print("=" * 60)

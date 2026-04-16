@@ -5,18 +5,22 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 *.egg-info/
 dist/
 build/
 
+# uv
+uv.lock
+
 # 敏感配置
 .env
 *.env.local
 .env.*.local
 
-# 缓存文件（不要上传）
+# 缓存文件
 .cache/
 *.cache.json
 embeddings.json
@@ -29,8 +33,7 @@ backups/
 qdrant/storage/
 knowledge_graph/graph.json
 
-# 测试文件
-test_*.py
+# 测试
 .pytest_cache/
 .coverage
 htmlcov/

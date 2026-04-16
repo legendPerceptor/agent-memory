@@ -20,12 +20,9 @@ import time
 import json
 from pathlib import Path
 
-# 添加父目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent / "vector-memory"))
-
-from memory_service import MemoryService
-from hybrid_rag import HybridRAG
-from atomic_notes import ZettelkastenMemory
+from agent_memory.memory_service import MemoryService
+from agent_memory.hybrid_rag import HybridRAG
+from agent_memory.atomic_notes import ZettelkastenMemory
 
 
 def benchmark_basic():

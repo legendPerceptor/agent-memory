@@ -9,21 +9,16 @@
 4. 实体共指消解（同一实体的不同表述）
 """
 
-import os
-import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent))
-
-from knowledge_graph import (
+from .knowledge_graph import (
     KnowledgeGraph,
     EntityType,
     RelationType,
     get_knowledge_graph
 )
-from memory_service import MemoryService
+from .memory_service import MemoryService
 
 
 class EnhancedMemoryWithGraph:

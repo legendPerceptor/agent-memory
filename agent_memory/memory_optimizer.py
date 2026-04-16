@@ -16,18 +16,14 @@
 """
 
 import os
-import sys
 import time
 import threading
 import queue
 from pathlib import Path
 from typing import List, Dict, Optional, Callable
-from functools import lru_cache, wraps
+from functools import wraps
 import json
 from datetime import datetime, timedelta
-
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent))
 
 # 配置
 CACHE_DIR = Path.home() / ".openclaw" / "workspace" / "ai-memory" / ".cache"

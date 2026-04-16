@@ -8,14 +8,8 @@
 3. 已安装依赖
 """
 
-import sys
-from pathlib import Path
-
-# 添加路径
-sys.path.insert(0, str(Path(__file__).parent))
-
-from tiered_memory import TieredMemory
-from memory_evolver import MemoryEvolver
+from .tiered_memory import TieredMemory
+from .memory_evolver import MemoryEvolver
 
 def test_tiered_memory():
     """测试分层记忆"""
@@ -104,8 +98,8 @@ if __name__ == "__main__":
         print()
         print("📚 文档:")
         print("  - docs/IMPROVEMENTS.md - 完整改进计划")
-        print("  - vector-memory/tiered_memory.py - 分层存储")
-        print("  - vector-memory/memory_evolver.py - 记忆演化")
+        print("  - agent_memory/tiered_memory.py - 分层存储")
+        print("  - agent_memory/memory_evolver.py - 记忆演化")
         
     except Exception as e:
         print(f"❌ 测试失败: {e}")
