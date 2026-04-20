@@ -98,26 +98,57 @@ class OpenClawMemoryService:
         return sections
     
     def _import_daily_memory(self, file: Path):
-        """导入每日记忆"""
+        """导入每日记忆——按段落导入，保留上下文"""
         
         content = file.read_text()
         date_str = file.stem  # 2026-03-24
         
-        # 提取重要事件
-        lines = content.split("\n")
-        for line in lines:
-            # 跳过标题和空行
-            if line.startswith("#") or not line.strip():
+        # 1. 按二级标题（## 或 ###）拆分成段落块
+        blocks = self._split_into_blocks(content)
+        
+        for heading, block_text in blocks:
+            text = block_text.strip()
+            if not text or len(text) < 15:
                 continue
             
-            # 检测重要内容
-            if any(keyword in line for keyword in ["✅", "完成", "配置", "购买", "决策"]):
-                # 使用演化系统记录
-                importance = 0.8 if "✅" in line else 0.6
-                self.evolver.evolve(
-                    line.lstrip("- ").lstrip("* "),
-                    importance=importance
-                )
+            # 2. 给每条记忆加上日期和标题上下文
+            contextualized = f"[{date_str}] {heading}\n{text}" if heading else f"[{date_str}] {text}"
+            
+            # 3. 根据内容判断重要性
+            importance = 0.6
+            if any(kw in text for kw in ["✅", "完成", "成功"]):
+                importance = 0.8
+            if any(kw in text for kw in ["决策", "重要", "关键"]):
+                importance = 0.85
+            
+            # 4. 跳过纯测试/调试内容
+            if any(kw in text.lower() for kw in ["测试", "test", "debug", "traceback", "error"]):
+                continue
+            
+            self.evolver.evolve(contextualized, importance=importance)
+    
+    def _split_into_blocks(self, content: str) -> list:
+        """按标题拆分成 (heading, body) 块"""
+        blocks = []
+        current_heading = ""
+        current_lines = []
+        
+        for line in content.split("\n"):
+            # 匹配 ## 或 ### 标题
+            if line.startswith("### ") or line.startswith("## "):
+                # 保存上一个块
+                if current_lines:
+                    blocks.append((current_heading, "\n".join(current_lines)))
+                current_heading = line.lstrip("#").strip()
+                current_lines = []
+            elif not line.startswith("#"):
+                current_lines.append(line)
+        
+        # 最后一个块
+        if current_lines:
+            blocks.append((current_heading, "\n".join(current_lines)))
+        
+        return blocks
     
     def remember(self, content: str, memory_type: str = "fact", importance: float = 0.5):
         """
