@@ -1,28 +1,30 @@
 #!/bin/bash
-# 创建 GitHub 仓库脚本
 
-# 仓库信息
+**English** | [🌐 中文](../../zh/PUSH_TO_GITHUB.md)
+# Create GitHub Repository Script
+
+# Repository information
 REPO_NAME="ai-memory"
 REPO_DESC="Agent Memory Vector System - A tiered memory system for AI agents with vector retrieval, auto-evolution, and knowledge graph"
 
-# 检查是否已安装 gh CLI
+# Check if gh CLI is installed
 if command -v gh &> /dev/null; then
-    echo "✅ 使用 gh CLI 创建仓库..."
+    echo "✅ Using gh CLI to create repository..."
     gh repo create $REPO_NAME --public --description "$REPO_DESC" --source=. --push
-    echo "✅ 仓库已创建并推送！"
+    echo "✅ Repository created and pushed!"
     echo "📍 https://github.com/legendPerceptor/$REPO_NAME"
 else
-    echo "⚠️  gh CLI 未安装"
+    echo "⚠️  gh CLI not installed"
     echo ""
-    echo "请手动创建仓库："
-    echo "1. 访问 https://github.com/new"
+    echo "Please create the repository manually:"
+    echo "1. Visit https://github.com/new"
     echo "2. Repository name: $REPO_NAME"
     echo "3. Description: $REPO_DESC"
-    echo "4. 选择 Public"
-    echo "5. 不要勾选 'Add a README file'"
-    echo "6. 点击 'Create repository'"
+    echo "4. Select Public"
+    echo "5. Do not check 'Add a README file'"
+    echo "6. Click 'Create repository'"
     echo ""
-    echo "创建后，执行："
+    echo "After creation, run:"
     echo "  cd ~/.openclaw/workspace/ai-memory"
     echo "  git push -u origin main"
 fi

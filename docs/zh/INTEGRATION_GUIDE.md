@@ -1,5 +1,7 @@
 # 为其他 Agent 安装 Memory 系统
 
+[🌐 English](../../en/INTEGRATION_GUIDE.md) | **中文**
+
 本指南帮助您为其他 AI Agent（如 Mia）安装 Agent Memory 系统。
 
 ---

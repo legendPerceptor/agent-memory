@@ -1,6 +1,8 @@
-# Agent Memory - AI Agent 记忆向量系统
+# Agent Memory - AI Agent Memory Vector System
 
-**一个为 AI Agent 设计的分层记忆系统，支持向量检索、自动演化、知识图谱**
+**A tiered memory system for AI Agents, supporting vector retrieval, auto-evolution, and knowledge graph**
+
+[🌐 中文](README.zh.md) | **English**
 
 [![GitHub](https://img.shields.io/badge/GitHub-legendPerceptor/agent--memory-blue)](https://github.com/legendPerceptor/agent-memory)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -8,34 +10,34 @@
 
 ---
 
-## 🌟 特性
+## 🌟 Features
 
-### ✅ 已实现
+### ✅ Implemented
 
-- **向量记忆存储** - 使用 Qdrant 进行高效的语义检索
-- **真实 OpenAI Embedding** - text-embedding-3-small (1536 维)
-- **分层存储架构** - Core / Working / Recall / Archival 四层记忆
-- **记忆演化系统** - 自动去重、智能更新、过时删除
-- **文件存储回退** - 当 Qdrant 不可用时自动回退到文件存储
-- **多类型支持** - fact / event / preference / decision
-- **独立 Qdrant 容器** - agent-memory-qdrant（独立于 aicreatorvault）
+- **Vector Memory Storage** - Efficient semantic retrieval using Qdrant
+- **Real OpenAI Embedding** - text-embedding-3-small (1536 dimensions)
+- **Tiered Storage Architecture** - Core / Working / Recall / Archival four-layer memory
+- **Memory Evolution System** - Auto-deduplication, smart updates, obsolete deletion
+- **File Storage Fallback** - Automatically falls back to file storage when Qdrant is unavailable
+- **Multi-type Support** - fact / event / preference / decision
+- **Standalone Qdrant Container** - agent-memory-qdrant (independent from aicreatorvault)
 
-### 🚧 开发中
+### 🚧 In Development
 
-- 知识图谱记忆
-- 时间感知记忆（Bi-temporal）
-- 记忆自动压缩
-- Web UI 管理界面
-- 本地 embedding 模型支持
+- Knowledge graph memory
+- Time-aware memory (Bi-temporal)
+- Auto memory compression
+- Web UI management interface
+- Local embedding model support
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 1. 启动 Qdrant 容器
+### 1. Start Qdrant Container
 
 ```bash
-# 启动独立的 agent-memory-qdrant 容器
+# Start the standalone agent-memory-qdrant container
 docker run -d \
   --name agent-memory-qdrant \
   --network proxy-net \
@@ -46,47 +48,47 @@ docker run -d \
   qdrant/qdrant:latest
 ```
 
-### 2. 配置环境变量
+### 2. Configure Environment Variables
 
 ```bash
-# 复制配置模板
+# Copy the configuration template
 cp .env.example .env
 
-# 编辑配置
+# Edit configuration
 nano .env
 
-# 必须设置：
+# Required settings:
 # - QDRANT_HOST=agent-memory-qdrant
 # - OPENAI_API_KEY=sk-proj-...
-# - HTTP_PROXY=http://xray:1087  # 如果需要代理
+# - HTTP_PROXY=http://xray:1087  # If proxy is needed
 ```
 
-### 3. 安装依赖
+### 3. Install Dependencies
 
 ```bash
-# 创建虚拟环境
+# Create virtual environment
 python3 -m venv venv
 . venv/bin/activate
 
-# 安装依赖
+# Install dependencies
 pip install -r vector-memory/requirements.txt
 ```
 
-### 4. 测试运行
+### 4. Test Run
 
 ```bash
-# 测试 Qdrant 连接
+# Test Qdrant connection
 python3 test_agent_memory_qdrant.py
 
-# 测试完整服务
+# Test full service
 python3 test_memory_service.py
 ```
 
 ---
 
-## 📖 使用示例
+## 📖 Usage Examples
 
-### 基础用法
+### Basic Usage
 
 ```python
 import sys
@@ -94,191 +96,212 @@ sys.path.insert(0, 'vector-memory')
 
 from memory_service import MemoryService
 
-# 初始化服务
+# Initialize service
 service = MemoryService()
 
-# 记录记忆（自动使用真实 OpenAI Embedding）
+# Store memory (automatically uses real OpenAI Embedding)
 service.remember(
-    content="远见喜欢英雄联盟，助手叫阿卡丽",
+    content="Yuanjian likes League of Legends, assistant is Akali",
     memory_type="preference",
     importance=0.8,
     tags=["user", "game", "preference"]
 )
 
-# 语义检索
-results = service.recall("远见喜欢什么游戏", limit=5)
+# Semantic retrieval
+results = service.recall("What games does Yuanjian like", limit=5)
 for result in results:
-    print(f"{result['content']} (相似度: {result.get('score', 0):.4f})")
+    print(f"{result['content']} (similarity: {result.get('score', 0):.4f})")
 
-# 查看统计
+# View statistics
 stats = service.stats()
-print(f"总记忆数: {stats['count']}")
-print(f"存储方式: {stats['storage']}")
+print(f"Total memories: {stats['count']}")
+print(f"Storage type: {stats['storage']}")
 ```
 
-### OpenClaw 集成
+### OpenClaw Integration
 
 ```python
-# 在 OpenClaw 启动时自动初始化
+# Auto-initialize when OpenClaw starts
 from init_memory import initialize_memory, get_context_for_query
 
-# 初始化
+# Initialize
 service = initialize_memory()
 
-# 检索上下文
-context = get_context_for_query("用户的编程偏好")
+# Retrieve context
+context = get_context_for_query("user programming preferences")
 ```
 
 ---
 
-## 🏗️ 分层存储架构
+## 🏗️ Tiered Storage Architecture
 
 ```
-Level 1: Core Memory (核心记忆)
-├── 用户档案
-├── 当前任务
-├── 重要偏好
-└── 始终在 context window
+Level 1: Core Memory
+├── User profile
+├── Current tasks
+├── Key preferences
+└── Always in context window
 
-Level 2: Working Memory (工作记忆)
-├── 最近 50 条对话
-├── 自动轮换 (FIFO)
-└── 临时上下文
+Level 2: Working Memory
+├── Recent 50 conversations
+├── Auto rotation (FIFO)
+└── Temporary context
 
-Level 3: Recall Memory (回忆记忆)
-├── 完整历史记录
-├── 向量索引
-└── 语义检索
+Level 3: Recall Memory
+├── Complete history
+├── Vector index
+└── Semantic retrieval
 
-Level 4: Archival Memory (归档记忆)
-├── 压缩摘要
-├── 长期存储
-└── 定期归档
+Level 4: Archival Memory
+├── Compressed summaries
+├── Long-term storage
+└── Periodic archival
 ```
 
 ---
 
-## 🧠 记忆演化系统
+## 🧠 Memory Evolution System
 
 ```python
 from memory_evolver import MemoryEvolver
 
 evolver = MemoryEvolver()
 
-# 场景 1: 矛盾更新
-evolver.evolve("用户使用 GLM-5")      # ADD
-evolver.evolve("用户改用 MiniMax")    # UPDATE (自动替换)
+# Scenario 1: Contradictory update
+evolver.evolve("User uses GLM-5")      # ADD
+evolver.evolve("User switched to MiniMax")    # UPDATE (auto-replace)
 
-# 场景 2: 重复跳过
-evolver.evolve("用户偏好简洁回复")    # ADD
-evolver.evolve("用户喜欢简洁的回复")  # NOOP (相似度 > 0.95)
+# Scenario 2: Duplicate skip
+evolver.evolve("User prefers concise replies")    # ADD
+evolver.evolve("User likes concise responses")  # NOOP (similarity > 0.95)
 
-# 场景 3: 过时删除
-evolver.evolve("临时测试配置")        # DELETE
+# Scenario 3: Obsolete deletion
+evolver.evolve("Temporary test configuration")        # DELETE
 ```
 
 ---
 
-## 📊 性能指标
+## 📊 Performance Metrics
 
-| 指标 | 当前 | 目标 | 改进 |
-|------|------|------|------|
-| 启动 Token | ~2,961 | ~1,000 | -66% |
-| 记忆容量 | ~100 条 | ~10,000 条 | 100x |
-| 查找速度 | O(n) | O(log n) | 50x |
-| 历史压缩 | 0% | 90% | 90% |
-| 语义相似度 | 0.4890 | - | ✅ 真实向量 |
-
----
-
-## 🔧 配置说明
-
-### 环境变量
-
-| 环境变量 | 默认值 | 说明 |
-|---------|--------|------|
-| `QDRANT_HOST` | `agent-memory-qdrant` | Qdrant 主机名 |
-| `QDRANT_PORT` | `6333` | Qdrant 端口 |
-| `OPENAI_API_KEY` | - | OpenAI API Key（必填） |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding 模型 |
-| `HTTP_PROXY` | - | HTTP 代理（可选） |
-| `HTTPS_PROXY` | - | HTTPS 代理（可选） |
+| Metric | Current | Target | Improvement |
+|--------|---------|--------|-------------|
+| Startup Tokens | ~2,961 | ~1,000 | -66% |
+| Memory Capacity | ~100 entries | ~10,000 entries | 100x |
+| Lookup Speed | O(n) | O(log n) | 50x |
+| History Compression | 0% | 90% | 90% |
+| Semantic Similarity | 0.4890 | - | ✅ Real vectors |
 
 ---
 
-## 💾 数据备份
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `QDRANT_HOST` | `agent-memory-qdrant` | Qdrant hostname |
+| `QDRANT_PORT` | `6333` | Qdrant port |
+| `OPENAI_API_KEY` | - | OpenAI API Key (required) |
+| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
+| `HTTP_PROXY` | - | HTTP proxy (optional) |
+| `HTTPS_PROXY` | - | HTTPS proxy (optional) |
+
+---
+
+## 💾 Data Backup
 
 ```bash
-# 创建备份
+# Create backup
 docker exec agent-memory-qdrant tar -czf /tmp/backup.tar.gz -C /qdrant/storage .
 
-# 复制到本地
+# Copy to local
 docker cp agent-memory-qdrant:/tmp/backup.tar.gz ./backups/
 
-# 定期备份 (crontab)
-# 每天凌晨 2 点备份
+# Scheduled backup (crontab)
+# Daily at 2 AM
 0 2 * * * docker exec agent-memory-qdrant tar -czf /tmp/backup.tar.gz -C /qdrant/storage . && docker cp agent-memory-qdrant:/tmp/backup.tar.gz ~/backups/qdrant_$(date +\%Y\%m\%d).tar.gz
 ```
 
 ---
 
-## 🗂️ 项目结构
+## 🗂️ Project Structure
 
 ```
 ai-memory/
 ├── vector-memory/
-│   ├── memory_service.py      # 核心记忆服务
-│   ├── tiered_memory.py       # 分层存储
-│   ├── memory_evolver.py      # 记忆演化
-│   └── requirements.txt       # 依赖
+│   ├── memory_service.py      # Core memory service
+│   ├── tiered_memory.py       # Tiered storage
+│   ├── memory_evolver.py      # Memory evolution
+│   └── requirements.txt       # Dependencies
 │
-├── test_agent_memory_qdrant.py  # Qdrant 连接测试
-├── test_memory_service.py       # 服务测试
+├── test_agent_memory_qdrant.py  # Qdrant connection test
+├── test_memory_service.py       # Service test
 │
-├── .env.example                 # 配置模板
-├── docker-compose.yml           # Docker 配置
-├── AGENT_MEMORY_QDRANT.md       # 容器文档
-└── README.md                    # 本文件
+├── .env.example                 # Configuration template
+├── docker-compose.yml           # Docker configuration
+├── AGENT_MEMORY_QDRANT.md       # Container documentation
+└── README.md                    # This file
 ```
 
 ---
 
-## 🚧 开发路线图
+## 📚 Documentation
 
-### Phase 2: 核心功能完善
-- [x] Qdrant 连接修复
-- [x] 真实 OpenAI Embedding
-- [x] 记忆压缩功能
-- [x] 性能优化
-
-### Phase 3: 高级功能
-- [x] 知识图谱记忆（`knowledge-graph` 分支）
-- [ ] 时间感知记忆
-- [ ] 异步优化
-- [ ] 批量操作
-
-### Phase 4: 生产就绪
-- [ ] 多用户协作
-- [ ] Web UI
-- [ ] 性能监控
-- [ ] API 文档
+| Document | English | 中文 |
+|----------|---------|------|
+| Advanced Memory 2026 | [en](docs/en/ADVANCED_MEMORY_2026.md) | [zh](docs/zh/ADVANCED_MEMORY_2026.md) |
+| Knowledge Graph | [en](docs/en/KNOWLEDGE_GRAPH.md) | [zh](docs/zh/KNOWLEDGE_GRAPH.md) |
+| Full Research | [en](docs/en/FULL_RESEARCH.md) | [zh](docs/zh/FULL_RESEARCH.md) |
+| Summary | [en](docs/en/SUMMARY.md) | [zh](docs/zh/SUMMARY.md) |
+| Integration Guide | [en](docs/en/INTEGRATION_GUIDE.md) | [zh](docs/zh/INTEGRATION_GUIDE.md) |
+| Knowledge Graph Update | [en](docs/en/KNOWLEDGE_GRAPH_UPDATE.md) | [zh](docs/zh/KNOWLEDGE_GRAPH_UPDATE.md) |
+| Quick Start | [en](docs/en/QUICKSTART.md) | [zh](docs/zh/QUICKSTART.md) |
+| Improvements | [en](docs/en/IMPROVEMENTS.md) | [zh](docs/zh/IMPROVEMENTS.md) |
+| Improvement Plan | [en](docs/en/IMPROVEMENT_PLAN.md) | [zh](docs/zh/IMPROVEMENT_PLAN.md) |
+| Compression & Optimization | [en](docs/en/COMPRESSION_AND_OPTIMIZATION.md) | [zh](docs/zh/COMPRESSION_AND_OPTIMIZATION.md) |
+| Pull Request Template | [en](docs/en/PULL_REQUEST_TEMPLATE.md) | [zh](docs/zh/PULL_REQUEST_TEMPLATE.md) |
+| Agent Memory Qdrant | [en](docs/en/AGENT_MEMORY_QDRANT.md) | [zh](docs/zh/AGENT_MEMORY_QDRANT.md) |
+| OpenAI Embedding | [en](docs/en/OPENAI_EMBEDDING_INTEGRATION.md) | [zh](docs/zh/OPENAI_EMBEDDING_INTEGRATION.md) |
+| Push to GitHub | [en](docs/en/PUSH_TO_GITHUB.md) | [zh](docs/zh/PUSH_TO_GITHUB.md) |
 
 ---
 
-## 📝 更新日志
+## 🚧 Roadmap
+
+### Phase 2: Core Feature Enhancement
+- [x] Qdrant connection fix
+- [x] Real OpenAI Embedding
+- [x] Memory compression
+- [x] Performance optimization
+
+### Phase 3: Advanced Features
+- [x] Knowledge graph memory (`knowledge-graph` branch)
+- [ ] Time-aware memory
+- [ ] Async optimization
+- [ ] Batch operations
+
+### Phase 4: Production Ready
+- [ ] Multi-user collaboration
+- [ ] Web UI
+- [ ] Performance monitoring
+- [ ] API documentation
+
+---
+
+## 📝 Changelog
 
 ### v2.0 (2026-03-25)
-- ✅ 集成真实 OpenAI Embedding API
-- ✅ 创建独立的 agent-memory-qdrant 容器
-- ✅ 修复 Qdrant Python 客户端连接问题（NO_PROXY）
-- ✅ 更新 memory_service.py 使用独立容器
-- ✅ 完整测试通过（语义相似度 0.4890）
+- ✅ Integrated real OpenAI Embedding API
+- ✅ Created standalone agent-memory-qdrant container
+- ✅ Fixed Qdrant Python client connection issue (NO_PROXY)
+- ✅ Updated memory_service.py to use standalone container
+- ✅ Full test passed (semantic similarity 0.4890)
 
 ### v1.0 (2026-03-24)
-- ✅ 实现分层存储架构
-- ✅ 实现记忆演化系统
-- ✅ 创建 memory_service.py
-- ✅ Qdrant 向量存储集成
+- ✅ Implemented tiered storage architecture
+- ✅ Implemented memory evolution system
+- ✅ Created memory_service.py
+- ✅ Qdrant vector storage integration
 
 ---
 
@@ -288,8 +311,8 @@ MIT
 
 ---
 
-## 🙏 致谢
+## 🙏 Acknowledgments
 
 - [OpenClaw](https://github.com/openclaw/openclaw)
-- [Qdrant 文档](https://qdrant.tech/documentation/)
+- [Qdrant Documentation](https://qdrant.tech/documentation/)
 - [OpenAI Embeddings](https://platform.openai.com/docs/guides/embeddings)

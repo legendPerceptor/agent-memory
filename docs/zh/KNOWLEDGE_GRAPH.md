@@ -1,5 +1,7 @@
 # 知识图谱记忆系统
 
+[🌐 English](../../en/KNOWLEDGE_GRAPH.md) | **中文**
+
 **分支：** `knowledge-graph`
 **状态：** ✅ 开发完成
 **版本：** v3.0-alpha

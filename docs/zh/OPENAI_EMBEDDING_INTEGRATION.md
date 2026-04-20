@@ -1,5 +1,7 @@
 # OpenAI Embedding 集成完成
 
+[🌐 English](../../en/OPENAI_EMBEDDING_INTEGRATION.md) | **中文**
+
 **日期：** 2026-03-25
 **状态：** ✅ 生产就绪
 

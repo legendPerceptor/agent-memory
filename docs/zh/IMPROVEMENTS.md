@@ -1,5 +1,7 @@
 # Agent Memory 改进计划
 
+[🌐 English](../../en/IMPROVEMENTS.md) | **中文**
+
 **基于最新研究：** Letta (MemGPT), Mem0, A-Mem, Zep  
 **创建日期：** 2026-03-24  
 **维护者：** 阿卡丽 🗡️

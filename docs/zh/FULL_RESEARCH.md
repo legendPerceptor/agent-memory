@@ -1,14 +1,16 @@
 # AI Memory 项目
 
+[🌐 English](../../en/FULL_RESEARCH.md) | **中文**
+
 ## 项目结构
 
 ```
 ai-memory/
-├── README.md                    # 猱究报告（4,495 字符)
+├── README.md                    # 研究报告（4,495 字符)
 ├── IMPROVEMENT_PLAN.md            # 优化计划（3,158 字符)
 ├── QUICKSTART.md                  # 快速开始指南
 ├── vector_memory.py               # 向量记忆服务
-├── simple_sync.py                  # 缀化同步脚本
+├── simple_sync.py                  # 简化同步脚本
 └── experiments/
     ├── memory-stats.sh            # Token 统计工具
     └── weekly-summary.py             # 自动摘要生成器
@@ -21,7 +23,7 @@ ai-memory/
 ### 1. 手动优化（立即生效)
 - ✅ 归档旧日志（3 个文件)
 - ✅ 创建本周摘要 `2026-W12.md`
-- ✅ 磾简 MEMORY.md
+- ✅ 精简 MEMORY.md
 - ✅ **Token 优化： 3,163 → 2,961 (-6%)
 
 ### 2. 向量化准备（已完成)

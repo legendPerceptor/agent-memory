@@ -1,5 +1,7 @@
 # Pull Request: 知识图谱记忆系统 (v3.0-alpha)
 
+[🌐 English](../../en/PULL_REQUEST_TEMPLATE.md) | **中文**
+
 ## 📝 描述
 
 实现知识图谱记忆系统，将记忆从简单的文本存储升级为结构化的知识网络。

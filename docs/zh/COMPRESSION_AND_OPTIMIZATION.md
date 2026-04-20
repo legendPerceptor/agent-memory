@@ -1,5 +1,7 @@
 # 记忆压缩与性能优化
 
+[🌐 English](../../en/COMPRESSION_AND_OPTIMIZATION.md) | **中文**
+
 **更新日期：** 2026-03-25
 **版本：** v2.2
 

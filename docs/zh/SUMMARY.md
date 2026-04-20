@@ -1,5 +1,7 @@
 # AI-Memory 项目总结
 
+[🌐 English](../../en/SUMMARY.md) | **中文**
+
 **日期：** 2026-03-24
 
 ## 完成的工作
@@ -12,7 +14,7 @@
 
 - **效果：** -6% token 消耗
 
-### ✅ 向量化 Memory服务已已创建
+### ✅ 向量化 Memory服务已创建
 
 **文件：**
 ```
@@ -24,8 +26,8 @@ ai-memory/
 ```
 
 **功能：**
-1. ✅ 讣忆写入（`remember()`）
-   - 攙持类型： fact, event, preference, decision
+1. ✅ 记忆写入（`remember()`）
+   - 支持类型： fact, event, preference, decision
    - 重要性评分： 0.0-1.0
    - 标签分类
 

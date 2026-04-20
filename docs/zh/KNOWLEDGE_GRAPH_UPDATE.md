@@ -1,5 +1,7 @@
 # 知识图谱更新与整合机制
 
+[🌐 English](../../en/KNOWLEDGE_GRAPH_UPDATE.md) | **中文**
+
 ## 🔄 更新机制
 
 ### 1. 自动提取（规则引擎）

@@ -1,5 +1,7 @@
 # Memory 优化计划
 
+[🌐 English](../../en/IMPROVEMENT_PLAN.md) | **中文**
+
 ## 当前状态分析
 
 **统计日期：** 2026-03-24

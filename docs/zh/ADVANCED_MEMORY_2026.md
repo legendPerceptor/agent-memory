@@ -1,5 +1,7 @@
 # Advanced Memory System 2026 - 改进方案
 
+[🌐 English](../../en/ADVANCED_MEMORY_2026.md) | **中文**
+
 **日期：** 2026-04-01  
 **分支：** feature/advanced-memory-2026  
 **状态：** 🚧 开发中
