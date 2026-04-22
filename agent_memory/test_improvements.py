@@ -22,7 +22,7 @@ def test_tiered_memory():
     
     # 测试核心记忆
     print("📝 更新核心记忆...")
-    memory.update_core("user_profile", "姓名: 远见\n时区: UTC+8")
+    memory.update_core("user_profile", "时区: UTC+8")
     memory.update_core("preferences", "偏好简洁回复\n喜欢英雄联盟")
     
     # 测试工作记忆
@@ -32,7 +32,7 @@ def test_tiered_memory():
     
     # 测试回忆记忆
     print("\n📝 记录回忆...")
-    memory.remember("远见购买了 MiniMax Token Plan", "fact", 0.8)
+    memory.remember("购买了 MiniMax Token Plan", "fact", 0.8)
     memory.remember("Qdrant 集成完成，性能提升 50x", "event", 0.9)
     
     # 统计

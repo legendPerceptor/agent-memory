@@ -554,7 +554,7 @@ if __name__ == "__main__":
     
     # 添加实体
     print("\n1️⃣ 添加实体...")
-    person = graph.add_entity("远见", EntityType.PERSON, role="用户")
+    person = graph.add_entity("用户", EntityType.PERSON, role="用户")
     game = graph.add_entity("英雄联盟", EntityType.CONCEPT, type="游戏")
     assistant = graph.add_entity("阿卡丽", EntityType.PERSON, role="助手")
     
@@ -564,15 +564,15 @@ if __name__ == "__main__":
     
     # 添加关系
     print("\n2️⃣ 添加关系...")
-    relation1 = graph.add_relation("远见", "英雄联盟", RelationType.RELATED_TO)
-    relation2 = graph.add_relation("远见", "阿卡丽", RelationType.KNOWS)
+    relation1 = graph.add_relation("用户", "英雄联盟", RelationType.RELATED_TO)
+    relation2 = graph.add_relation("用户", "阿卡丽", RelationType.KNOWS)
     
     print(f"  ✅ 关系: {relation1}")
     print(f"  ✅ 关系: {relation2}")
     
     # 查询邻居
-    print("\n3️⃣ 查询远见的邻居...")
-    neighbors = graph.get_neighbors("远见")
+    print("\n3️⃣ 查询用户的邻居...")
+    neighbors = graph.get_neighbors("用户")
     for neighbor in neighbors:
         print(f"  - {neighbor.name} ({neighbor.type.value})")
     
@@ -588,7 +588,7 @@ if __name__ == "__main__":
     
     # 从文本提取
     print("\n5️⃣ 从文本提取...")
-    text = "远见喜欢英雄联盟，阿卡丽是他的助手"
+    text = "用户喜欢英雄联盟，阿卡丽是他的助手"
     entities, relations = graph.extract_from_text(text)
     print(f"  提取实体: {len(entities)} 个")
     print(f"  提取关系: {len(relations)} 条")

@@ -273,7 +273,7 @@ def main():
     print()
 
     test_memories = [
-        ("远见购买了 MiniMax Token Plan", "fact", 0.8, ["api", "minimax"]),
+        ("用户购买了 MiniMax Token Plan", "fact", 0.8, ["api", "minimax"]),
         ("Qdrant 集成完成，性能提升 50x", "event", 0.9, ["qdrant", "performance"]),
         ("用户偏好简洁回复", "preference", 0.7, ["communication"]),
         ("GLM → MiniMax fallback 配置", "decision", 0.8, ["config", "fallback"]),

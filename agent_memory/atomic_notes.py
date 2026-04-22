@@ -391,7 +391,7 @@ def main():
     
     # 长内容（自动分解）
     long_content = """
-    远见购买了一个新的 MiniMax Token Plan。这个计划包含 1000 万 tokens，
+    用户购买了一个新的 MiniMax Token Plan。这个计划包含 1000 万 tokens，
     年费 490 元。计划在 2026-04-01 激活，有效期 12 个月。
     MiniMax 的 API 支持多种模型，包括 Minimax-M2.7 和 Minimax-M2.5。
     """

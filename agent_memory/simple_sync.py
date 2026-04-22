@@ -2,16 +2,30 @@
 """
 简化版记忆同步脚本
 
-直接读取 MEMORY.md 并向量化
+直接读取 MEMORY.md 并向量化，支持智能 section 识别
 """
 
 from pathlib import Path
 
 from .memory_service import MemoryService
 
-# 配置
 WORKSPACE = Path.home() / ".openclaw" / "workspace"
 MEMORY_FILE = WORKSPACE / "MEMORY.md"
+
+SECTION_KEYWORDS = {
+    "user_profile": ["用户", "档案", "个人", "关于", "profile", "about", "简介"],
+    "preferences": ["偏好", "习惯", "喜好", "preference", "环境", "配置", "设置"],
+    "current_task": ["项目", "任务", "当前", "project", "task", "工作", "计划"],
+}
+
+
+def _match_section(title: str) -> str | None:
+    title_lower = title.lower()
+    for block_name, keywords in SECTION_KEYWORDS.items():
+        for kw in keywords:
+            if kw in title_lower:
+                return block_name
+    return None
 
 
 def main():
@@ -20,7 +34,6 @@ def main():
 
     print("🔄 开始同步记忆到 Qdrant...")
 
-    # 读取 MEMORY.md
     if not MEMORY_FILE.exists():
         print("❌ MEMORY.md 不存在")
         return
@@ -28,30 +41,31 @@ def main():
     content = MEMORY_FILE.read_text()
     lines = content.strip().split('\n')
 
+    current_section = ""
     count = 0
+
     for line in lines:
         line = line.strip()
 
-        # 跳过空行、标题、注释
+        if line.startswith("## "):
+            current_section = line[3:].strip()
+            continue
+
         if not line or line.startswith('#') or line.startswith('```'):
             continue
 
-        # 提取有价值的行
         if line.startswith('- ') or line.startswith('* '):
             text = line.lstrip('-* ').strip()
 
-            # 跳过过短的行
             if len(text) < 10:
                 continue
 
-            # 判断重要性
             importance = 0.5
             if any(keyword in text.lower() for keyword in ['api', 'token', 'key', 'github', '项目', 'config']):
                 importance = 0.8
             elif any(keyword in text.lower() for keyword in ['邮箱', 'email', '时区', '偏好']):
                 importance = 0.9
 
-            # 提取标签
             tags = []
             if 'api' in text.lower():
                 tags.append('api')
@@ -60,7 +74,12 @@ def main():
             if 'config' in text.lower() or '配置' in text:
                 tags.append('config')
 
-            # 写入记忆
+            if current_section:
+                matched = _match_section(current_section)
+                if matched:
+                    tags.append(matched)
+                text = f"[{current_section}] {text}"
+
             memory_id = memory.remember(
                 text,
                 memory_type="fact",
@@ -73,9 +92,8 @@ def main():
 
     print(f"\n✅ 同步完成！共 {count} 条记忆")
 
-    # 测试检索
     print("\n🔍 测试记忆检索...")
-    test_queries = ["MiniMax", "项目", "配置"]
+    test_queries = ["配置", "项目", "偏好"]
 
     for query in test_queries:
         print(f"\n查询: {query}")

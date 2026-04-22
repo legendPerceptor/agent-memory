@@ -246,12 +246,12 @@ if __name__ == "__main__":
     
     # 记录记忆（自动提取实体）
     print("\n1️⃣ 记录记忆...")
-    memory_id = enhanced.remember("远见喜欢英雄联盟，阿卡丽是他的助手", "fact")
+    memory_id = enhanced.remember("用户喜欢英雄联盟，阿卡丽是他的助手", "fact")
     print(f"  ✅ 记忆 ID: {memory_id}")
     
     # 检索记忆（带图谱上下文）
     print("\n2️⃣ 检索记忆...")
-    results = enhanced.recall("远见", limit=5, include_graph_context=True)
+    results = enhanced.recall("用户", limit=5, include_graph_context=True)
     print(f"  找到 {len(results)} 条结果:")
     for i, result in enumerate(results, 1):
         content = result.get('content', '')
@@ -259,7 +259,7 @@ if __name__ == "__main__":
     
     # 获取实体的图谱
     print("\n3️⃣ 获取实体图谱...")
-    graph = enhanced.get_entity_graph("远见")
+    graph = enhanced.get_entity_graph("用户")
     print(f"  实体: {graph.get('entity', {}).get('name')}")
     print(f"  邻居数: {len(graph.get('neighbors', []))}")
     print(f"  关系数: {len(graph.get('relations', []))}")
@@ -273,7 +273,7 @@ if __name__ == "__main__":
     
     # 可视化
     print("\n5️⃣ 生成实体网络图...")
-    mermaid = enhanced.visualize_entity_network("远见")
+    mermaid = enhanced.visualize_entity_network("用户")
     print(mermaid)
     
     print("\n" + "=" * 60)

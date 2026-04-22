@@ -29,27 +29,27 @@ def extract_memories_from_file(filepath: Path) -> List[Dict]:
         content = f.read()
 
     memories = []
-    lines = content.split('\n')
 
-    for line in lines:
+    current_heading = ""
+    for line in content.split('\n'):
         line = line.strip()
-        if not line or line.startswith('#'):
+        if not line:
             continue
 
-        # 跳过标题和空行
-        if line.startswith('##') or line.startswith('###'):
+        if line.startswith('## ') or line.startswith('### '):
+            current_heading = line.lstrip('#').strip()
             continue
 
-        # 提取日期（格式：2026-03-24）
+        if line.startswith('#'):
+            continue
+
         date_match = re.search(r'\d{4}-\d{2}-\d{2}', line)
         date_str = date_match.group(0) if date_match else datetime.now().strftime('%Y-%m-%d')
 
-        # 提取待办事项
         if line.startswith('- [ ]') or line.startswith('- [x]'):
             memory_type = 'todo'
             importance = 0.7
             memory_text = line.replace('- [ ]', '').replace('- [x]', '').strip()
-        # 提取普通条目
         elif line.startswith('- '):
             memory_type = 'general'
             importance = 0.5
@@ -57,7 +57,9 @@ def extract_memories_from_file(filepath: Path) -> List[Dict]:
         else:
             continue
 
-        # 提取标签
+        if len(memory_text) < 5:
+            continue
+
         tags = []
         if 'todo' in memory_text.lower() or '待办' in memory_text.lower():
             tags.append('todo')
@@ -65,6 +67,9 @@ def extract_memories_from_file(filepath: Path) -> List[Dict]:
             tags.append('project')
         if 'config' in memory_text.lower() or '配置' in memory_text.lower():
             tags.append('config')
+
+        if current_heading:
+            memory_text = f"[{current_heading}] {memory_text}"
 
         memories.append({
             'content': memory_text,

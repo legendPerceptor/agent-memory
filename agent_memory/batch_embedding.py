@@ -236,7 +236,7 @@ if __name__ == "__main__":
     print("🧪 测试批量 Embedding 服务\n")
 
     test_texts = [
-        "远见喜欢英雄联盟",
+        "用户喜欢英雄联盟",
         "助手叫阿卡丽",
         "OpenAI API key 用于 embedding",
         "Qdrant 是向量数据库",

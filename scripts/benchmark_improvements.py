@@ -139,7 +139,7 @@ def benchmark_zettelkasten():
     print("\n测试原子笔记存储...")
     
     long_content = """
-    远见购买了一个新的 MiniMax Token Plan。这个计划包含 1000 万 tokens，
+    用户购买了一个新的 MiniMax Token Plan。这个计划包含 1000 万 tokens，
     每月费用为 100 元。计划在 2026-04-01 激活，有效期 12 个月。
     MiniMax 的 API 支持多种模型，包括 abab6.5s-chat 和 abab6.5g-chat。
     """
