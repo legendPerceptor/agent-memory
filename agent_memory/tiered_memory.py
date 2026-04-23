@@ -231,14 +231,13 @@ class RecallMemory:
         from .memory_service import MemoryService
         self.service = memory_service or MemoryService()
         self.use_qdrant = self.service.use_qdrant
+        self.memory_file = MEMORY_DIR / "recall_memory.json"
+        self.memories = self._load_memories()
     
     @property
     def client(self):
         """方便访问 qdrant client"""
         return self.service.client
-
-        self.memory_file = MEMORY_DIR / "recall_memory.json"
-        self.memories = self._load_memories()
 
     def _load_memories(self) -> List[Dict]:
         if self.memory_file.exists():

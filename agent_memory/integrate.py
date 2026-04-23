@@ -302,12 +302,26 @@ class OpenClawMemoryService:
 
     def confirm_candidate(self, candidate_id: str, source: str = "api") -> str:
         """确认候选项，写入记忆系统"""
-        # NOOP 候选项不在队列中，直接返回已有记忆 ID
+        # 先检查队列中的候选项
         candidate = self.feedback.candidate_queue.get(candidate_id)
-        if candidate and candidate.operation == "NOOP" and candidate.target_memory_id:
-            print(f"⏭️  重复记忆，直接返回已有 ID: {candidate.target_memory_id}")
-            return candidate.target_memory_id
-        return self.feedback.confirm_candidate(candidate_id, source)
+        if candidate:
+            if candidate.operation == "NOOP" and candidate.target_memory_id:
+                # NOOP：已有相同记忆，直接返回已有 ID
+                print(f"⏭️  重复记忆，直接返回已有 ID: {candidate.target_memory_id}")
+                return candidate.target_memory_id
+            return self.feedback.confirm_candidate(candidate_id, source)
+        
+        # 候选项不在队列中（可能是 NOOP 直接返回的候选项尝试确认）
+        # 从 pending 候选项中查找（可能是 NOOP 但已入库的情况）
+        pending = self.feedback.get_pending_candidates(limit=100)
+        for p in pending:
+            if p.candidate_id == candidate_id:
+                if p.operation == "NOOP" and p.target_memory_id:
+                    print(f"⏭️  重复记忆（从队列外），直接返回已有 ID: {p.target_memory_id}")
+                    return p.target_memory_id
+                return self.feedback.confirm_candidate(candidate_id, source)
+        
+        raise ValueError(f"候选项不存在: {candidate_id}")
 
     def modify_candidate(self, candidate_id: str, content: str = None, importance: float = None, memory_type: str = None, reason: str = "", source: str = "api") -> str:
         """修改候选项后写入记忆系统"""

@@ -179,6 +179,10 @@ class MemoryEvolver:
         
         if candidate.operation == "NOOP":
             print(f"⏭️  重复记忆，无需审核: {candidate.target_memory_id}")
+            # NOOP 也加入队列（标记为已完成），方便 confirm_candidate 统一处理
+            if feedback_manager:
+                candidate.status = "confirmed"
+                feedback_manager.candidate_queue.add(candidate)
             return candidate
         
         if feedback_manager:
