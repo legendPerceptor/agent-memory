@@ -25,6 +25,18 @@ from .config import (
     QDRANT_HOST, QDRANT_PORT, OPENAI_API_KEY, OPENAI_EMBEDDING_MODEL,
 )
 
+try:
+    from .hybrid_rag import HybridRAG
+    HYBRID_RAG_AVAILABLE = True
+except ImportError:
+    HYBRID_RAG_AVAILABLE = False
+
+try:
+    from .knowledge_graph import KnowledgeGraph, EntityType, RelationType
+    KNOWLEDGE_GRAPH_AVAILABLE = True
+except ImportError:
+    KNOWLEDGE_GRAPH_AVAILABLE = False
+
 # Qdrant 客户端
 try:
     from qdrant_client import QdrantClient
@@ -225,14 +237,28 @@ class RecallMemory:
     - 语义检索
 
     内部使用 MemoryService 作为底层存储引擎
+    集成 HybridRAG 混合检索和 KnowledgeGraph 知识图谱
     """
 
-    def __init__(self, memory_service=None):
+    def __init__(self, memory_service=None, enable_hybrid_rag: bool = True, enable_knowledge_graph: bool = True):
         from .memory_service import MemoryService
         self.service = memory_service or MemoryService()
         self.use_qdrant = self.service.use_qdrant
         self.memory_file = MEMORY_DIR / "recall_memory.json"
         self.memories = self._load_memories()
+
+        self.hybrid_rag = None
+        if enable_hybrid_rag and HYBRID_RAG_AVAILABLE:
+            self.hybrid_rag = HybridRAG(self.service)
+
+        self.knowledge_graph = None
+        if enable_knowledge_graph and KNOWLEDGE_GRAPH_AVAILABLE:
+            self.knowledge_graph = KnowledgeGraph()
+
+        rag_status = "✅" if self.hybrid_rag else "⚠️"
+        kg_status = "✅" if self.knowledge_graph else "⚠️"
+        print(f"  {rag_status} HybridRAG: {'已启用' if self.hybrid_rag else '未启用'}")
+        print(f"  {kg_status} KnowledgeGraph: {'已启用' if self.knowledge_graph else '未启用'}")
     
     @property
     def client(self):
@@ -303,6 +329,14 @@ class RecallMemory:
             self._save_memories()
             print(f"✅ 回忆已存储到文件: {short_id}")
 
+        if self.knowledge_graph:
+            try:
+                entities, relations = self.knowledge_graph.extract_from_text(content)
+                if entities:
+                    print(f"  📊 知识图谱提取: {len(entities)} 个实体, {len(relations)} 条关系")
+            except Exception as e:
+                print(f"  ⚠️ 知识图谱提取失败: {e}")
+
         return memory_id
 
     def recall(
@@ -310,9 +344,32 @@ class RecallMemory:
         query: str,
         limit: int = 10,
         min_importance: float = 0.0,
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
+        use_hybrid: bool = True,
+        include_graph_context: bool = True
     ) -> List[Dict]:
-        """检索回忆"""
+        """
+        检索回忆
+
+        优先使用 HybridRAG 混合检索（时间衰减+关键词boost+人类评价），
+        回退到纯向量/关键词检索。
+        可选附带知识图谱上下文。
+        """
+
+        if use_hybrid and self.hybrid_rag:
+            try:
+                results = self.hybrid_rag.hybrid_recall(
+                    query,
+                    limit=limit,
+                    min_importance=min_importance,
+                    temporal_filter=True
+                )
+                if results:
+                    if include_graph_context and self.knowledge_graph:
+                        results = self._enrich_with_graph_context(query, results)
+                    return results
+            except Exception as e:
+                print(f"⚠️  HybridRAG 检索失败，回退到基础检索: {e}")
 
         if self.use_qdrant:
             try:
@@ -346,6 +403,8 @@ class RecallMemory:
                 ]
 
                 print(f"✅ 从 Qdrant 检索到 {len(memories)} 条回忆")
+                if include_graph_context and self.knowledge_graph:
+                    memories = self._enrich_with_graph_context(query, memories)
                 return memories
 
             except Exception as e:
@@ -374,7 +433,42 @@ class RecallMemory:
 
         scored_memories.sort(key=lambda x: x["score"], reverse=True)
         print(f"✅ 从文件检索到 {len(scored_memories[:limit])} 条回忆")
-        return scored_memories[:limit]
+        if include_graph_context and self.knowledge_graph:
+            scored_memories = self._enrich_with_graph_context(query, scored_memories[:limit])
+        return scored_memories
+
+    def _enrich_with_graph_context(self, query: str, results: List[Dict]) -> List[Dict]:
+        """用知识图谱上下文丰富检索结果"""
+        if not self.knowledge_graph:
+            return results
+
+        try:
+            query_entities, _ = self.knowledge_graph.extract_from_text(query)
+            if not query_entities:
+                return results
+
+            graph_context = []
+            for entity in query_entities[:3]:
+                neighbors = self.knowledge_graph.get_neighbors(entity.name, depth=2)
+                for neighbor in neighbors[:5]:
+                    graph_context.append({
+                        "entity": neighbor.name,
+                        "type": neighbor.type.value,
+                        "source": entity.name,
+                    })
+
+            if graph_context:
+                entity_names = [ctx["entity"] for ctx in graph_context[:10]]
+                results.append({
+                    "content": f"[图谱上下文] 相关实体: {', '.join(entity_names)}",
+                    "type": "graph_context",
+                    "score": 0.5,
+                    "entities": graph_context
+                })
+        except Exception as e:
+            print(f"  ⚠️ 图谱上下文提取失败: {e}")
+
+        return results
 
     def stats(self) -> Dict:
         """统计信息"""
@@ -505,15 +599,20 @@ class TieredMemory:
     分层记忆系统
 
     整合四个层级的记忆存储
+    集成 HybridRAG 混合检索和 KnowledgeGraph 知识图谱
     """
 
-    def __init__(self, memory_service=None):
+    def __init__(self, memory_service=None, enable_hybrid_rag: bool = True, enable_knowledge_graph: bool = True):
         from .memory_service import MemoryService
         self.service = memory_service or MemoryService()
         
         self.core = CoreMemory()
         self.working = WorkingMemory()
-        self.recall_mem = RecallMemory(self.service)
+        self.recall_mem = RecallMemory(
+            self.service,
+            enable_hybrid_rag=enable_hybrid_rag,
+            enable_knowledge_graph=enable_knowledge_graph
+        )
         self.archival = ArchivalMemory()
 
         print("✅ 分层记忆系统已初始化")
@@ -619,7 +718,7 @@ class TieredMemory:
 
     def stats(self) -> Dict:
         """统计信息"""
-        return {
+        stats = {
             "core": {
                 "blocks": len(self.core.blocks),
                 "tokens": self.core.count_tokens()
@@ -633,6 +732,14 @@ class TieredMemory:
                 "archives": len(self.archival.list_archives())
             }
         }
+
+        if self.recall_mem.hybrid_rag:
+            stats["hybrid_rag"] = self.recall_mem.hybrid_rag.stats().get("hybrid_rag", {})
+
+        if self.recall_mem.knowledge_graph:
+            stats["knowledge_graph"] = self.recall_mem.knowledge_graph.stats()
+
+        return stats
 
 
 # 测试代码

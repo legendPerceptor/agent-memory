@@ -18,6 +18,12 @@ from .tiered_memory import TieredMemory
 from .memory_evolver import MemoryEvolver
 from .human_feedback import HumanFeedbackManager, MemoryCandidate
 
+try:
+    from .atomic_notes import ZettelkastenMemory
+    ZETTELKASTEN_AVAILABLE = True
+except ImportError:
+    ZETTELKASTEN_AVAILABLE = False
+
 WORKSPACE = Path.home() / ".openclaw" / "workspace"
 MEMORY_FILE = WORKSPACE / "MEMORY.md"
 MEMORY_DIR = WORKSPACE / "memory"
@@ -56,6 +62,11 @@ class OpenClawMemoryService:
         self.tiered = TieredMemory(self.service)
         self.evolver = MemoryEvolver(self.tiered)
         self.feedback = HumanFeedbackManager(self.tiered)
+
+        self.zettelkasten = None
+        if ZETTELKASTEN_AVAILABLE:
+            self.zettelkasten = ZettelkastenMemory(self.service)
+
         self.initialized = False
 
         print("🧠 OpenClaw 记忆服务初始化中...")
@@ -376,7 +387,7 @@ class OpenClawMemoryService:
         """
         智能检索记忆
 
-        返回格式化的 context 文本
+        返回格式化的 context 文本（含图谱上下文）
         """
 
         result = self.tiered.recall(query, context_budget=max_tokens)
@@ -394,9 +405,20 @@ class OpenClawMemoryService:
 
         if result["recall"]:
             context_parts.append("\n=== 相关记忆 ===")
+            graph_parts = []
             for mem in result["recall"]:
+                if mem.get("type") == "graph_context":
+                    graph_parts.append(mem["content"])
+                    continue
                 score = mem.get('score', 0)
-                context_parts.append(f"- [{score:.2f}] {mem['content']}")
+                hybrid_score = mem.get('hybrid_score')
+                score_display = f"{hybrid_score:.3f}" if hybrid_score else f"{score:.2f}"
+                context_parts.append(f"- [{score_display}] {mem['content']}")
+
+            if graph_parts:
+                context_parts.append("\n=== 知识图谱 ===")
+                for part in graph_parts:
+                    context_parts.append(part)
 
         return "\n".join(context_parts)
 
@@ -413,6 +435,158 @@ class OpenClawMemoryService:
 
         stats = self.get_stats()
         print(f"📊 优化完成: {stats}")
+
+    def remember_atomic(
+        self,
+        content: str,
+        note_type: str = "fact",
+        source: str = "",
+        confidence: float = 0.7,
+        tags: List[str] = None,
+        auto_decompose: bool = True
+    ) -> List[str]:
+        """
+        存储原子笔记（Zettelkasten 方法）
+
+        将长内容自动分解为原子笔记，建立关键词链接
+
+        Args:
+            content: 笔记内容
+            note_type: 笔记类型 (fact/event/preference/decision/procedure)
+            source: 来源标识
+            confidence: 置信度 (0.0-1.0)
+            tags: 标签列表
+            auto_decompose: 是否自动分解长内容
+
+        Returns:
+            笔记 ID 列表
+        """
+        if not self.zettelkasten:
+            print("⚠️ Zettelkasten 未启用，回退到普通记忆存储")
+            return [self.remember(content, note_type, confidence)]
+
+        return self.zettelkasten.remember_atomic(
+            content=content,
+            note_type=note_type,
+            source=source,
+            confidence=confidence,
+            tags=tags,
+            auto_decompose=auto_decompose
+        )
+
+    def recall_atomic(
+        self,
+        query: str,
+        limit: int = 10,
+        min_confidence: float = 0.6
+    ) -> List:
+        """
+        检索原子笔记
+
+        Args:
+            query: 查询文本
+            limit: 最大返回数量
+            min_confidence: 最小置信度
+
+        Returns:
+            原子笔记列表
+        """
+        if not self.zettelkasten:
+            print("⚠️ Zettelkasten 未启用")
+            return []
+
+        return self.zettelkasten.recall_atomic(
+            query=query,
+            limit=limit,
+            min_confidence=min_confidence
+        )
+
+    def get_entity_graph(self, entity_name: str, depth: int = 2) -> Dict:
+        """
+        获取实体的知识图谱子图
+
+        Args:
+            entity_name: 实体名称
+            depth: 搜索深度
+
+        Returns:
+            子图信息（实体、邻居、关系）
+        """
+        if not self.tiered.recall_mem.knowledge_graph:
+            return {"error": "知识图谱未启用"}
+
+        return self.tiered.recall_mem.knowledge_graph.get_neighbors(
+            entity_name, depth=depth
+        )
+
+    def find_entity_path(self, source: str, target: str, max_depth: int = 5) -> List:
+        """
+        查找两个实体之间的路径
+
+        Args:
+            source: 起始实体名称
+            target: 目标实体名称
+            max_depth: 最大搜索深度
+
+        Returns:
+            路径列表
+        """
+        if not self.tiered.recall_mem.knowledge_graph:
+            return []
+
+        return self.tiered.recall_mem.knowledge_graph.find_path(
+            source, target, max_depth
+        )
+
+    def get_graph_stats(self) -> Dict:
+        """获取知识图谱统计"""
+        if not self.tiered.recall_mem.knowledge_graph:
+            return {"error": "知识图谱未启用"}
+
+        return self.tiered.recall_mem.knowledge_graph.stats()
+
+    def visualize_entity_network(self, entity_name: str, output_file: str = None) -> str:
+        """
+        可视化实体网络（生成 Mermaid 图表）
+
+        Args:
+            entity_name: 中心实体名称
+            output_file: 输出文件路径（可选）
+
+        Returns:
+            Mermaid 图表代码
+        """
+        if not self.tiered.recall_mem.knowledge_graph:
+            return "错误: 知识图谱未启用"
+
+        entity = self.tiered.recall_mem.knowledge_graph.get_entity(entity_name)
+        if not entity:
+            return f"错误: 实体 '{entity_name}' 不存在"
+
+        neighbors = self.tiered.recall_mem.knowledge_graph.get_neighbors(entity_name, depth=2)
+
+        lines = ["graph TD"]
+        lines.append(f'    {entity.id}["{entity.name}\\n({entity.type.value})"]')
+        lines.append(f'    style {entity.id} fill:#f9f,stroke:#333,stroke-width:4px')
+
+        for neighbor in neighbors:
+            label = f"{neighbor.name}\\n({neighbor.type.value})"
+            lines.append(f'    {neighbor.id}["{label}"]')
+
+        for relation in self.tiered.recall_mem.knowledge_graph.relations:
+            if relation.source_id in [entity.id] + [n.id for n in neighbors]:
+                if relation.target_id in [entity.id] + [n.id for n in neighbors]:
+                    source = self.tiered.recall_mem.knowledge_graph.entities[relation.source_id]
+                    target = self.tiered.recall_mem.knowledge_graph.entities[relation.target_id]
+                    lines.append(f'    {source.id} -->|{relation.type.value}| {target.id}')
+
+        mermaid_code = "\n".join(lines)
+
+        if output_file:
+            Path(output_file).write_text(mermaid_code)
+            print(f"✅ 图表已导出到: {output_file}")
+
+        return mermaid_code
 
 
 _memory_service = None
