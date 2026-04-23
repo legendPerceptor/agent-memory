@@ -16,6 +16,7 @@ from typing import Dict, List, Tuple, Optional
 
 from .tiered_memory import TieredMemory
 from .memory_evolver import MemoryEvolver
+from .human_feedback import HumanFeedbackManager, MemoryCandidate
 
 WORKSPACE = Path.home() / ".openclaw" / "workspace"
 MEMORY_FILE = WORKSPACE / "MEMORY.md"
@@ -51,6 +52,7 @@ class OpenClawMemoryService:
 
         self.tiered = TieredMemory()
         self.evolver = MemoryEvolver(self.tiered)
+        self.feedback = HumanFeedbackManager(self.tiered)
         self.initialized = False
 
         print("🧠 OpenClaw 记忆服务初始化中...")
@@ -233,26 +235,120 @@ class OpenClawMemoryService:
 
         return blocks
 
-    def remember(self, content: str, memory_type: str = "fact", importance: float = 0.5):
+    def remember(self, content: str, memory_type: str = "fact", importance: float = 0.5, require_approval: bool = False):
         """
         记录新记忆
 
         自动选择层级并演化
+
+        Args:
+            content: 记忆内容
+            memory_type: 记忆类型 (fact/conversation/preference/...)
+            importance: 重要性 (0.0-1.0)
+            require_approval: 为 True 时创建候选项等待审核，而非直接写入
         """
 
         if importance >= 0.9:
+            if require_approval:
+                proposal = self.tiered.core.propose_update("current_task", content)
+                print(f"📋 核心记忆变更提案:")
+                print(f"   块: {proposal.get('block_label', 'current_task')}")
+                for line in proposal.get("diff_lines", []):
+                    print(f"   {line}")
+                return proposal
             print(f"💡 记录到核心记忆: {content[:50]}...")
             self.tiered.update_core("current_task", content)
         elif memory_type == "conversation":
             self.tiered.working.add("system", content)
         elif memory_type == "preference":
+            if require_approval:
+                current = self.tiered.core.get("preferences")
+                new_value = f"{current}\n{content}".strip() if current else content
+                proposal = self.tiered.core.propose_update("preferences", new_value)
+                print(f"📋 偏好变更提案:")
+                for line in proposal.get("diff_lines", []):
+                    print(f"   {line}")
+                return proposal
             current = self.tiered.core.get("preferences")
             new_value = f"{current}\n{content}".strip() if current else content
             self.tiered.update_core("preferences", new_value)
             print(f"💡 偏好已更新: {content[:50]}...")
         else:
+            if require_approval:
+                candidate = self.evolver.evolve_with_feedback(
+                    content, importance, feedback_manager=self.feedback
+                )
+                return candidate
             operation, memory_id = self.evolver.evolve(content, importance)
             print(f"📝 {operation}: {content[:50]}...")
+
+    def propose_memory(self, content: str, memory_type: str = "fact", importance: float = 0.5) -> MemoryCandidate:
+        """
+        提出记忆候选项（等待人类审核）
+
+        Returns:
+            MemoryCandidate 候选项，可通过 confirm/modify/reject 处理
+        """
+        return self.evolver.evolve_with_feedback(
+            content, importance, feedback_manager=self.feedback
+        )
+
+    def review_candidates(self, limit: int = 20) -> List[MemoryCandidate]:
+        """获取待审核的记忆候选项"""
+        return self.feedback.get_pending_candidates(limit)
+
+    def confirm_candidate(self, candidate_id: str, source: str = "api") -> str:
+        """确认候选项，写入记忆系统"""
+        return self.feedback.confirm_candidate(candidate_id, source)
+
+    def modify_candidate(self, candidate_id: str, content: str = None, importance: float = None, memory_type: str = None, reason: str = "", source: str = "api") -> str:
+        """修改候选项后写入记忆系统"""
+        return self.feedback.modify_candidate(candidate_id, content, importance, memory_type, reason, source)
+
+    def reject_candidate(self, candidate_id: str, reason: str = "", source: str = "api") -> None:
+        """拒绝候选项"""
+        self.feedback.reject_candidate(candidate_id, reason, source)
+
+    def rate_memory(self, memory_id: str, rating: int, source: str = "api") -> None:
+        """
+        评价记忆
+
+        Args:
+            memory_id: 记忆 ID
+            rating: +1 有用 / -1 无用
+            source: 反馈来源 ("feishu" | "cli" | "api")
+        """
+        self.feedback.rate_memory(memory_id, rating, source)
+
+    def submit_relevance_feedback(self, query: str, memory_id: str, relevant: bool, source: str = "api") -> None:
+        """
+        提交检索相关性反馈
+
+        Args:
+            query: 查询文本
+            memory_id: 记忆 ID
+            relevant: 是否相关
+            source: 反馈来源
+        """
+        self.feedback.submit_relevance_feedback(query, memory_id, relevant, source)
+
+    def generate_review_queue(self, criteria: Dict = None) -> List[Dict]:
+        """生成待审核记忆队列（周期性审核用）"""
+        return self.feedback.generate_review_queue(criteria)
+
+    def apply_review_decision(self, memory_id: str, action: str, **kwargs) -> None:
+        """
+        应用审核决策
+
+        Args:
+            memory_id: 记忆 ID
+            action: "keep" | "modify" | "delete" | "protect"
+        """
+        self.feedback.apply_review_decision(memory_id, action, **kwargs)
+
+    def get_feedback_stats(self) -> Dict:
+        """获取反馈统计"""
+        return self.feedback.get_feedback_stats()
 
     def recall(self, query: str, max_tokens: int = 2000) -> str:
         """

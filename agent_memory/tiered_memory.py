@@ -90,7 +90,7 @@ class CoreMemory:
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(json.dumps(self.blocks, indent=2, ensure_ascii=False))
 
-    def update(self, block_name: str, value: str):
+    def update(self, block_name: str, value: str, require_confirmation: bool = False):
         """更新记忆块"""
         if block_name in self.blocks:
             limit = self.blocks[block_name].get("limit", 1000)
@@ -103,6 +103,46 @@ class CoreMemory:
             print(f"✅ 核心记忆已更新: {block_name}")
         else:
             print(f"⚠️  未知的记忆块: {block_name}")
+
+    def propose_update(self, block_name: str, new_value: str) -> Dict:
+        """
+        提出核心记忆变更提案（不直接执行）
+        
+        返回变更详情供人类审核
+        """
+        if block_name not in self.blocks:
+            return {"error": f"未知的记忆块: {block_name}"}
+
+        old_value = self.blocks[block_name].get("value", "")
+        limit = self.blocks[block_name].get("limit", 1000)
+        
+        if len(new_value) > limit:
+            new_value = new_value[:limit]
+
+        return {
+            "block_name": block_name,
+            "block_label": self.blocks[block_name].get("label", block_name),
+            "old_value": old_value,
+            "new_value": new_value,
+            "diff_lines": self._compute_diff(old_value, new_value),
+            "token_change": (len(new_value) - len(old_value)) // 4
+        }
+
+    def _compute_diff(self, old_text: str, new_text: str) -> List[str]:
+        """简单文本差异对比"""
+        old_lines = set(old_text.split("\n")) if old_text else set()
+        new_lines = set(new_text.split("\n")) if new_text else set()
+        
+        added = new_lines - old_lines
+        removed = old_lines - new_lines
+        
+        diff = []
+        for line in sorted(added):
+            diff.append(f"+ {line}")
+        for line in sorted(removed):
+            diff.append(f"- {line}")
+        
+        return diff
 
     def append(self, block_name: str, content: str):
         """追加内容到记忆块"""
@@ -294,7 +334,11 @@ class RecallMemory:
             "importance": importance,
             "tags": tags or [],
             "created_at": datetime.now().isoformat(),
-            "access_count": 0
+            "access_count": 0,
+            "human_rating": 0,
+            "feedback_count": 0,
+            "reviewed": False,
+            "protected": False
         }
 
         if self.use_qdrant:
@@ -413,6 +457,79 @@ class RecallMemory:
             "count": len(self.memories),
             "file": str(self.memory_file)
         }
+
+    def rate_memory(self, memory_id: str, rating: int) -> None:
+        """评价记忆（+1 有用 / -1 无用）"""
+        if rating not in [-1, 0, 1]:
+            raise ValueError("rating 必须是 -1, 0 或 1")
+
+        for mem in self.memories:
+            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
+                mem["human_rating"] = mem.get("human_rating", 0) + rating
+                mem["feedback_count"] = mem.get("feedback_count", 0) + 1
+                self._save_memories()
+                return
+
+        if self.use_qdrant:
+            try:
+                self.client.set_payload(
+                    collection_name=COLLECTION_NAME,
+                    payload={
+                        "human_rating": rating,
+                        "feedback_count": 1
+                    },
+                    points=[memory_id]
+                )
+            except Exception as e:
+                print(f"⚠️  Qdrant 更新评价失败: {e}")
+
+    def update_memory(self, memory_id: str, content: str = None, importance: float = None) -> bool:
+        """修改已有记忆的内容或重要性"""
+        for mem in self.memories:
+            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
+                if content is not None:
+                    mem["content"] = content
+                if importance is not None:
+                    mem["importance"] = importance
+                mem["reviewed"] = True
+                self._save_memories()
+                return True
+
+        if self.use_qdrant:
+            try:
+                payload = {"reviewed": True}
+                if content is not None:
+                    payload["content"] = content
+                if importance is not None:
+                    payload["importance"] = importance
+                self.client.set_payload(
+                    collection_name=COLLECTION_NAME,
+                    payload=payload,
+                    points=[memory_id]
+                )
+                return True
+            except Exception as e:
+                print(f"⚠️  Qdrant 更新记忆失败: {e}")
+
+        return False
+
+    def set_protected(self, memory_id: str, protected: bool) -> None:
+        """设置记忆保护状态（受保护的记忆不会被压缩或删除）"""
+        for mem in self.memories:
+            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
+                mem["protected"] = protected
+                self._save_memories()
+                return
+
+        if self.use_qdrant:
+            try:
+                self.client.set_payload(
+                    collection_name=COLLECTION_NAME,
+                    payload={"protected": protected},
+                    points=[memory_id]
+                )
+            except Exception as e:
+                print(f"⚠️  Qdrant 设置保护失败: {e}")
 
 
 class ArchivalMemory:

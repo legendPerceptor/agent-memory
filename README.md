@@ -18,15 +18,15 @@
 - **Real OpenAI Embedding** - text-embedding-3-small (1536 dimensions)
 - **Tiered Storage Architecture** - Core / Working / Recall / Archival four-layer memory
 - **Memory Evolution System** - Auto-deduplication, smart updates, obsolete deletion
+- **Human-in-the-Loop Feedback System** - Human feedback driven memory quality improvement
 - **File Storage Fallback** - Automatically falls back to file storage when Qdrant is unavailable
 - **Multi-type Support** - fact / event / preference / decision
 - **Standalone Qdrant Container** - agent-memory-qdrant (independent from aicreatorvault)
 
 ### 🚧 In Development
 
-- Knowledge graph memory
 - Time-aware memory (Bi-temporal)
-- Auto memory compression
+- Async optimization
 - Web UI management interface
 - Local embedding model support
 
@@ -181,6 +181,126 @@ evolver.evolve("Temporary test configuration")        # DELETE
 
 ---
 
+## 👤 Human-in-the-Loop Feedback System
+
+Improve memory quality through human feedback, supporting Feishu, CLI, API and other feedback channels.
+
+### Three-Layer Feedback Architecture
+
+```
+Layer 1: Write-time Feedback
+├── Memory candidate review (propose → review → confirm/modify/reject)
+├── Auto-approve high confidence, pending review for low confidence
+└── Core memory change proposals (diff preview)
+
+Layer 2: Retrieval-time Feedback
+├── Memory rating (+1 useful / -1 not useful)
+├── Retrieval relevance feedback
+└── Feedback-driven retrieval parameter adaptation
+
+Layer 3: Periodic Review
+├── Low confidence / contradictory / long-unaccessed memory review
+├── Contradiction detection and merge suggestions
+└── Protected memories (no compression/deletion)
+```
+
+### Usage Examples
+
+```python
+from agent_memory import HumanFeedbackManager
+
+manager = HumanFeedbackManager()
+
+# Write-time feedback - create candidate for review
+candidate = manager.propose_memory(
+    content="User prefers concise replies",
+    memory_type="preference",
+    importance=0.8,
+    confidence=0.85,
+    source="feishu"
+)
+
+# Confirm candidate
+manager.confirm_candidate(candidate.candidate_id, source="feishu")
+
+# Modify candidate before writing
+manager.modify_candidate(
+    candidate.candidate_id,
+    content="User prefers concise replies, dislikes lengthy responses",
+    importance=0.9,
+    reason="User added details",
+    source="feishu"
+)
+
+# Reject candidate
+manager.reject_candidate(candidate.candidate_id, reason="Inaccurate info", source="feishu")
+
+# Retrieval-time feedback - rate memory
+manager.rate_memory(memory_id, rating=1, source="feishu")   # useful
+manager.rate_memory(memory_id, rating=-1, source="feishu")  # not useful
+
+# Retrieval relevance feedback
+manager.submit_relevance_feedback("API config", memory_id, relevant=False, source="feishu")
+
+# Auto-approve high confidence candidates
+manager.auto_approve(confidence_threshold=0.9)
+
+# Periodic review
+queue = manager.generate_review_queue()        # generate review queue
+contradictions = manager.detect_contradictions() # detect contradictory memories
+merges = manager.suggest_merges()               # suggest similar memory merges
+manager.apply_review_decision(memory_id, "protect")  # protect important memory
+```
+
+### OpenClaw Integration (Feishu Feedback)
+
+```python
+from agent_memory.integrate import get_memory_service
+
+service = get_memory_service()
+
+# Require approval when remembering
+candidate = service.remember("User uses MiniMax model", require_approval=True)
+
+# User confirms/modifies/rejects via Feishu
+service.confirm_candidate(candidate.candidate_id, source="feishu")
+service.modify_candidate(candidate.candidate_id, content="Corrected content", source="feishu")
+service.reject_candidate(candidate.candidate_id, reason="Not needed", source="feishu")
+
+# User rates retrieval results via Feishu
+service.rate_memory(memory_id, rating=-1, source="feishu")
+service.submit_relevance_feedback(query, memory_id, relevant=False, source="feishu")
+```
+
+### Feedback Data Models
+
+```python
+@dataclass
+class MemoryFeedback:
+    feedback_id: str           # Feedback ID
+    memory_id: str             # Associated memory ID
+    feedback_type: str         # confirm | modify | reject | relevance_up | relevance_down
+    original_content: str      # Original content
+    modified_content: str      # Modified content
+    original_importance: float # Original importance
+    modified_importance: float # Modified importance
+    source: str                # feishu | cli | api
+    reason: str                # Feedback reason
+    created_at: str            # Feedback timestamp
+
+@dataclass
+class MemoryCandidate:
+    candidate_id: str          # Candidate ID
+    content: str               # Memory content
+    memory_type: str           # Suggested classification
+    importance: float          # Suggested importance
+    confidence: float          # Extraction confidence
+    operation: str             # ADD | UPDATE | DELETE
+    status: str                # pending | confirmed | modified | rejected
+```
+
+---
+
 ## 📊 Performance Metrics
 
 | Metric | Current | Target | Improvement |
@@ -227,19 +347,29 @@ docker cp agent-memory-qdrant:/tmp/backup.tar.gz ./backups/
 ## 🗂️ Project Structure
 
 ```
-ai-memory/
-├── vector-memory/
-│   ├── memory_service.py      # Core memory service
-│   ├── tiered_memory.py       # Tiered storage
-│   ├── memory_evolver.py      # Memory evolution
-│   └── requirements.txt       # Dependencies
+agent-memory/
+├── agent_memory/
+│   ├── __init__.py              # Module entry
+│   ├── config.py                # Configuration
+│   ├── memory_service.py        # Core memory service
+│   ├── tiered_memory.py         # Tiered storage
+│   ├── memory_evolver.py        # Memory evolution
+│   ├── human_feedback.py        # Human-in-the-Loop feedback system
+│   ├── hybrid_rag.py            # Hybrid retrieval
+│   ├── atomic_notes.py          # Zettelkasten atomic notes
+│   ├── knowledge_graph.py       # Knowledge graph
+│   ├── enhanced_memory_graph.py # Graph-enhanced memory
+│   ├── memory_compressor.py     # Memory compression
+│   ├── memory_optimizer.py      # Performance optimization
+│   ├── batch_embedding.py       # Batch embedding
+│   └── integrate.py             # OpenClaw integration
 │
-├── test_agent_memory_qdrant.py  # Qdrant connection test
-├── test_memory_service.py       # Service test
+├── scripts/
+│   ├── init_memory.py           # OpenClaw startup initialization
+│   └── benchmark_improvements.py # Performance benchmark
 │
 ├── .env.example                 # Configuration template
 ├── docker-compose.yml           # Docker configuration
-├── AGENT_MEMORY_QDRANT.md       # Container documentation
 └── README.md                    # This file
 ```
 
@@ -276,6 +406,7 @@ ai-memory/
 
 ### Phase 3: Advanced Features
 - [x] Knowledge graph memory (`knowledge-graph` branch)
+- [x] Human-in-the-Loop feedback system
 - [ ] Time-aware memory
 - [ ] Async optimization
 - [ ] Batch operations
@@ -289,6 +420,15 @@ ai-memory/
 ---
 
 ## 📝 Changelog
+
+### v2.1 (2026-04-23)
+- ✅ Added Human-in-the-Loop feedback system (write-time, retrieval-time, periodic review)
+- ✅ Memory candidate review mechanism (propose → confirm/modify/reject)
+- ✅ Memory rating and retrieval relevance feedback
+- ✅ Feedback-driven retrieval parameter adaptation
+- ✅ Core memory change proposals (diff preview)
+- ✅ Protected memories (no compression/deletion)
+- ✅ Periodic review queue and contradiction detection
 
 ### v2.0 (2026-03-25)
 - ✅ Integrated real OpenAI Embedding API

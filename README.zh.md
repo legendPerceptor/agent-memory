@@ -18,15 +18,15 @@
 - **真实 OpenAI Embedding** - text-embedding-3-small (1536 维)
 - **分层存储架构** - Core / Working / Recall / Archival 四层记忆
 - **记忆演化系统** - 自动去重、智能更新、过时删除
+- **Human-in-the-Loop 反馈系统** - 人类反馈驱动的记忆质量提升
 - **文件存储回退** - 当 Qdrant 不可用时自动回退到文件存储
 - **多类型支持** - fact / event / preference / decision
 - **独立 Qdrant 容器** - agent-memory-qdrant（独立于 aicreatorvault）
 
 ### 🚧 开发中
 
-- 知识图谱记忆
 - 时间感知记忆（Bi-temporal）
-- 记忆自动压缩
+- 异步优化
 - Web UI 管理界面
 - 本地 embedding 模型支持
 
@@ -181,6 +181,126 @@ evolver.evolve("临时测试配置")        # DELETE
 
 ---
 
+## 👤 Human-in-the-Loop 反馈系统
+
+通过人类反馈提升记忆质量，支持飞书、CLI、API 等多种反馈渠道。
+
+### 三层反馈架构
+
+```
+Layer 1: 写入时反馈
+├── 记忆候选项审核（propose → review → confirm/modify/reject）
+├── 高置信度自动审批，低置信度等待人工审核
+└── 核心记忆变更提案（diff 预览）
+
+Layer 2: 检索时反馈
+├── 记忆评价（+1 有用 / -1 无用）
+├── 检索相关性反馈
+└── 反馈驱动检索参数自适应
+
+Layer 3: 周期性审核
+├── 低置信度/矛盾/长期未访问记忆审核
+├── 矛盾记忆检测与合并建议
+└── 受保护记忆（不可压缩/删除）
+```
+
+### 使用示例
+
+```python
+from agent_memory import HumanFeedbackManager
+
+manager = HumanFeedbackManager()
+
+# 写入时反馈 - 创建候选项等待审核
+candidate = manager.propose_memory(
+    content="用户偏好简洁回复",
+    memory_type="preference",
+    importance=0.8,
+    confidence=0.85,
+    source="feishu"
+)
+
+# 确认候选项
+manager.confirm_candidate(candidate.candidate_id, source="feishu")
+
+# 修改候选项后写入
+manager.modify_candidate(
+    candidate.candidate_id,
+    content="用户偏好简洁回复，不喜欢长篇大论",
+    importance=0.9,
+    reason="用户补充了细节",
+    source="feishu"
+)
+
+# 拒绝候选项
+manager.reject_candidate(candidate.candidate_id, reason="信息不准确", source="feishu")
+
+# 检索时反馈 - 评价记忆
+manager.rate_memory(memory_id, rating=1, source="feishu")   # 有用
+manager.rate_memory(memory_id, rating=-1, source="feishu")  # 无用
+
+# 检索相关性反馈
+manager.submit_relevance_feedback("API 配置", memory_id, relevant=False, source="feishu")
+
+# 自动审批高置信度候选项
+manager.auto_approve(confidence_threshold=0.9)
+
+# 周期性审核
+queue = manager.generate_review_queue()        # 生成待审核队列
+contradictions = manager.detect_contradictions() # 检测矛盾记忆
+merges = manager.suggest_merges()               # 建议合并相似记忆
+manager.apply_review_decision(memory_id, "protect")  # 保护重要记忆
+```
+
+### OpenClaw 集成（飞书反馈）
+
+```python
+from agent_memory.integrate import get_memory_service
+
+service = get_memory_service()
+
+# 记录记忆时要求审核
+candidate = service.remember("用户使用 MiniMax 模型", require_approval=True)
+
+# 用户在飞书确认/修改/拒绝
+service.confirm_candidate(candidate.candidate_id, source="feishu")
+service.modify_candidate(candidate.candidate_id, content="修正内容", source="feishu")
+service.reject_candidate(candidate.candidate_id, reason="不需要", source="feishu")
+
+# 用户在飞书评价检索结果
+service.rate_memory(memory_id, rating=-1, source="feishu")
+service.submit_relevance_feedback(query, memory_id, relevant=False, source="feishu")
+```
+
+### 反馈数据模型
+
+```python
+@dataclass
+class MemoryFeedback:
+    feedback_id: str           # 反馈 ID
+    memory_id: str             # 关联的记忆 ID
+    feedback_type: str         # confirm | modify | reject | relevance_up | relevance_down
+    original_content: str      # 原始内容
+    modified_content: str      # 修改后内容
+    original_importance: float # 原始重要性
+    modified_importance: float # 修改后重要性
+    source: str                # feishu | cli | api
+    reason: str                # 反馈原因
+    created_at: str            # 反馈时间
+
+@dataclass
+class MemoryCandidate:
+    candidate_id: str          # 候选项 ID
+    content: str               # 记忆内容
+    memory_type: str           # 建议分类
+    importance: float          # 建议重要性
+    confidence: float          # 抽取置信度
+    operation: str             # ADD | UPDATE | DELETE
+    status: str                # pending | confirmed | modified | rejected
+```
+
+---
+
 ## 📊 性能指标
 
 | 指标 | 当前 | 目标 | 改进 |
@@ -227,19 +347,29 @@ docker cp agent-memory-qdrant:/tmp/backup.tar.gz ./backups/
 ## 🗂️ 项目结构
 
 ```
-ai-memory/
-├── vector-memory/
-│   ├── memory_service.py      # 核心记忆服务
-│   ├── tiered_memory.py       # 分层存储
-│   ├── memory_evolver.py      # 记忆演化
-│   └── requirements.txt       # 依赖
+agent-memory/
+├── agent_memory/
+│   ├── __init__.py              # 模块入口
+│   ├── config.py                # 配置管理
+│   ├── memory_service.py        # 核心记忆服务
+│   ├── tiered_memory.py         # 分层存储
+│   ├── memory_evolver.py        # 记忆演化
+│   ├── human_feedback.py        # Human-in-the-Loop 反馈系统
+│   ├── hybrid_rag.py            # 混合检索
+│   ├── atomic_notes.py          # Zettelkasten 原子笔记
+│   ├── knowledge_graph.py       # 知识图谱
+│   ├── enhanced_memory_graph.py # 图谱增强记忆
+│   ├── memory_compressor.py     # 记忆压缩
+│   ├── memory_optimizer.py      # 性能优化
+│   ├── batch_embedding.py       # 批量 Embedding
+│   └── integrate.py             # OpenClaw 集成
 │
-├── test_agent_memory_qdrant.py  # Qdrant 连接测试
-├── test_memory_service.py       # 服务测试
+├── scripts/
+│   ├── init_memory.py           # OpenClaw 启动初始化
+│   └── benchmark_improvements.py # 性能基准测试
 │
 ├── .env.example                 # 配置模板
 ├── docker-compose.yml           # Docker 配置
-├── AGENT_MEMORY_QDRANT.md       # 容器文档
 └── README.md                    # 本文件
 ```
 
@@ -276,6 +406,7 @@ ai-memory/
 
 ### Phase 3: 高级功能
 - [x] 知识图谱记忆（`knowledge-graph` 分支）
+- [x] Human-in-the-Loop 反馈系统
 - [ ] 时间感知记忆
 - [ ] 异步优化
 - [ ] 批量操作
@@ -289,6 +420,15 @@ ai-memory/
 ---
 
 ## 📝 更新日志
+
+### v2.1 (2026-04-23)
+- ✅ 新增 Human-in-the-Loop 反馈系统（写入时反馈、检索时反馈、周期性审核）
+- ✅ 记忆候选项审核机制（propose → confirm/modify/reject）
+- ✅ 记忆评价与检索相关性反馈
+- ✅ 反馈驱动检索参数自适应
+- ✅ 核心记忆变更提案（diff 预览）
+- ✅ 受保护记忆（不可压缩/删除）
+- ✅ 周期性审核队列与矛盾检测
 
 ### v2.0 (2026-03-25)
 - ✅ 集成真实 OpenAI Embedding API

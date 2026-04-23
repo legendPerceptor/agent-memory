@@ -47,6 +47,7 @@ class AtomicNote:
     # 额外字段
     keywords: List[str]  # 关键词（用于自动链接）
     note_type: str  # fact | event | preference | decision | procedure
+    human_rating: int = 0  # 人类评价累计分（正=有用，负=无用）
     
     def to_dict(self) -> Dict:
         """转换为字典"""
@@ -356,6 +357,55 @@ class ZettelkastenMemory:
                 "confidence_threshold": self.confidence_threshold
             }
         }
+
+    def update_confidence(self, note_id: str, rating: int) -> Optional[float]:
+        """
+        根据人类反馈更新原子笔记的置信度
+        
+        正面反馈: confidence += 0.05
+        负面反馈: confidence -= 0.1（惩罚更重）
+        
+        Args:
+            note_id: 笔记 ID
+            rating: +1 或 -1
+        
+        Returns:
+            更新后的置信度，如果笔记不存在则返回 None
+        """
+        if rating not in [-1, 1]:
+            raise ValueError("rating 必须是 -1 或 1")
+        
+        results = self.rag.hybrid_recall(note_id, limit=1)
+        
+        for result in results:
+            try:
+                note_data = json.loads(result["content"])
+                note = AtomicNote.from_dict(note_data)
+                
+                if note.id != note_id:
+                    continue
+                
+                note.human_rating = note.human_rating + rating
+                
+                if rating > 0:
+                    note.confidence = min(1.0, note.confidence + 0.05)
+                else:
+                    note.confidence = max(0.0, note.confidence - 0.1)
+                
+                self.memory.remember(
+                    content=json.dumps(note.to_dict(), ensure_ascii=False),
+                    memory_type=f"atomic_{note.note_type}",
+                    importance=note.confidence,
+                    tags=note.tags + note.keywords
+                )
+                
+                print(f"⭐ 原子笔记置信度已更新: {note_id} → {note.confidence:.2f}")
+                return note.confidence
+            except:
+                continue
+        
+        print(f"⚠️ 原子笔记不存在: {note_id}")
+        return None
 
 
 def main():

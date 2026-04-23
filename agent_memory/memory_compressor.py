@@ -72,27 +72,28 @@ class MemoryCompressor:
             "weekly_compressed": 0,
             "monthly_compressed": 0,
             "archived": 0,
+            "protected_skipped": 0,
             "bytes_saved": 0,
             "files": []
         }
         
-        # 扫描所有记忆文件
         for file_path in self.memory_dir.glob("*.md"):
             if file_path.name.startswith(("2026-W", "2026-M", "archive")):
-                continue  # 跳过已压缩和归档的文件
+                continue
             
             stats["total_files"] += 1
             
-            # 解析日期
             try:
                 file_date = datetime.strptime(file_path.stem, "%Y-%m-%d")
                 age_days = (today - file_date).days
             except ValueError:
-                continue  # 跳过非日期文件
+                continue
             
-            # 决定压缩策略
+            if self._is_protected_file(file_path):
+                stats["protected_skipped"] += 1
+                continue
+            
             if age_days >= DAYS_TO_ARCHIVE:
-                # 归档（90+ 天）
                 result = self._archive_file(file_path, dry_run)
                 if result:
                     stats["archived"] += 1
@@ -100,7 +101,6 @@ class MemoryCompressor:
                     stats["files"].append(result)
             
             elif age_days >= DAYS_TO_MONTHLY:
-                # 压缩为月摘要（30+ 天）
                 result = self._compress_to_monthly(file_path, file_date, dry_run)
                 if result:
                     stats["monthly_compressed"] += 1
@@ -108,7 +108,6 @@ class MemoryCompressor:
                     stats["files"].append(result)
             
             elif age_days >= DAYS_TO_WEEKLY:
-                # 压缩为周摘要（7+ 天）
                 result = self._compress_to_weekly(file_path, file_date, dry_run)
                 if result:
                     stats["weekly_compressed"] += 1
@@ -116,6 +115,58 @@ class MemoryCompressor:
                     stats["files"].append(result)
         
         return stats
+
+    def preview_compression(self) -> Dict:
+        """
+        预览压缩计划（不执行任何操作）
+        
+        返回即将被压缩的文件列表和操作类型
+        """
+        today = datetime.now()
+        plan = {
+            "weekly": [],
+            "monthly": [],
+            "archive": [],
+            "protected_skipped": []
+        }
+        
+        for file_path in self.memory_dir.glob("*.md"):
+            if file_path.name.startswith(("2026-W", "2026-M", "archive")):
+                continue
+            
+            try:
+                file_date = datetime.strptime(file_path.stem, "%Y-%m-%d")
+                age_days = (today - file_date).days
+            except ValueError:
+                continue
+            
+            file_info = {
+                "name": file_path.name,
+                "size": file_path.stat().st_size,
+                "age_days": age_days
+            }
+            
+            if self._is_protected_file(file_path):
+                plan["protected_skipped"].append(file_info)
+                continue
+            
+            if age_days >= DAYS_TO_ARCHIVE:
+                plan["archive"].append(file_info)
+            elif age_days >= DAYS_TO_MONTHLY:
+                plan["monthly"].append(file_info)
+            elif age_days >= DAYS_TO_WEEKLY:
+                plan["weekly"].append(file_info)
+        
+        return plan
+
+    def _is_protected_file(self, file_path: Path) -> bool:
+        """检查文件是否包含受保护的记忆"""
+        try:
+            content = file_path.read_text()
+            protected_markers = ["🔒", "[protected]", "protected: true"]
+            return any(marker in content for marker in protected_markers)
+        except:
+            return False
     
     def _compress_to_weekly(self, file_path: Path, file_date: datetime, dry_run: bool) -> Optional[Dict]:
         """压缩为周摘要"""

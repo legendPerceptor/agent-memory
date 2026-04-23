@@ -15,7 +15,7 @@
 import json
 import hashlib
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Union
 from pathlib import Path
 
 from .tiered_memory import TieredMemory, RecallMemory
@@ -48,33 +48,74 @@ class MemoryEvolver:
             "临时", "测试", "临时测试", "待删除"
         ]
 
-    def evolve(self, new_content: str, importance: float = 0.5) -> Tuple[str, str]:
-        """演化记忆"""
-        # 1. 检索相似记忆
+    def evolve(self, new_content: str, importance: float = 0.5, dry_run: bool = False) -> Union[Tuple[str, str], 'MemoryCandidate']:
+        """
+        演化记忆
+        
+        Args:
+            new_content: 新记忆内容
+            importance: 重要性
+            dry_run: 为 True 时返回 MemoryCandidate 而非直接写入
+        
+        Returns:
+            dry_run=False: (operation, memory_id) 元组
+            dry_run=True: MemoryCandidate 候选项
+        """
         similar = self.recall.recall(new_content, limit=3)
 
         if not similar:
+            if dry_run:
+                from .human_feedback import MemoryCandidate
+                return MemoryCandidate(
+                    candidate_id="",
+                    content=new_content,
+                    memory_type="fact",
+                    importance=importance,
+                    confidence=self._estimate_confidence(new_content, importance, None),
+                    operation="ADD"
+                )
             memory_id = self.recall.remember(new_content, "fact", importance)
             return ("ADD", memory_id)
 
         best_match = similar[0]
         similarity_score = best_match.get("score", 0)
 
-        # 2. 判断操作类型
         if similarity_score > 0.95:
             print(f"⏭️  重复记忆，跳过: {best_match['id']}")
+            if dry_run:
+                from .human_feedback import MemoryCandidate
+                return MemoryCandidate(
+                    candidate_id="",
+                    content=new_content,
+                    memory_type="fact",
+                    importance=importance,
+                    confidence=1.0,
+                    operation="NOOP",
+                    target_memory_id=best_match["id"]
+                )
             return ("NOOP", best_match["id"])
 
-        # 3. 检查是否矛盾
         operation = self._classify_operation(new_content, best_match["content"])
 
         if operation == "UPDATE":
-            old_id = best_match["id"]
             updated_content = self._merge_content(
                 best_match["content"],
                 new_content
             )
 
+            if dry_run:
+                from .human_feedback import MemoryCandidate
+                return MemoryCandidate(
+                    candidate_id="",
+                    content=updated_content,
+                    memory_type=best_match.get("type", "fact"),
+                    importance=max(importance, best_match.get("importance", 0.5)),
+                    confidence=self._estimate_confidence(new_content, importance, best_match),
+                    operation="UPDATE",
+                    target_memory_id=best_match.get("qdrant_id", best_match["id"])
+                )
+
+            old_id = best_match["id"]
             self._delete_memory(best_match.get("qdrant_id", old_id))
 
             new_id = self.recall.remember(
@@ -87,13 +128,102 @@ class MemoryEvolver:
             return ("UPDATE", new_id)
 
         elif operation == "DELETE":
+            if dry_run:
+                from .human_feedback import MemoryCandidate
+                return MemoryCandidate(
+                    candidate_id="",
+                    content=new_content,
+                    memory_type="fact",
+                    importance=importance,
+                    confidence=self._estimate_confidence(new_content, importance, best_match),
+                    operation="DELETE",
+                    target_memory_id=best_match.get("qdrant_id", best_match["id"])
+                )
+
             self._delete_memory(best_match.get("qdrant_id", best_match["id"]))
             print(f"🗑️  过时记忆已删除: {best_match['id']}")
             return ("DELETE", None)
 
         else:
+            if dry_run:
+                from .human_feedback import MemoryCandidate
+                return MemoryCandidate(
+                    candidate_id="",
+                    content=new_content,
+                    memory_type="fact",
+                    importance=importance,
+                    confidence=self._estimate_confidence(new_content, importance, best_match),
+                    operation="ADD"
+                )
             memory_id = self.recall.remember(new_content, "fact", importance)
             return ("ADD", memory_id)
+
+    def evolve_with_feedback(
+        self,
+        new_content: str,
+        importance: float = 0.5,
+        feedback_manager=None
+    ) -> 'MemoryCandidate':
+        """
+        带反馈的演化：生成候选项并提交到反馈管理器
+        
+        Args:
+            new_content: 新记忆内容
+            importance: 重要性
+            feedback_manager: HumanFeedbackManager 实例
+        
+        Returns:
+            MemoryCandidate 候选项
+        """
+        candidate = self.evolve(new_content, importance, dry_run=True)
+        
+        if candidate.operation == "NOOP":
+            print(f"⏭️  重复记忆，无需审核: {candidate.target_memory_id}")
+            return candidate
+        
+        if feedback_manager:
+            candidate = feedback_manager.propose_memory(
+                content=candidate.content,
+                memory_type=candidate.memory_type,
+                importance=candidate.importance,
+                confidence=candidate.confidence,
+                operation=candidate.operation,
+                target_memory_id=candidate.target_memory_id
+            )
+        
+        return candidate
+
+    def _estimate_confidence(self, new_content: str, importance: float, best_match: Optional[Dict]) -> float:
+        """估算抽取置信度"""
+        confidence = 0.5
+
+        if importance >= 0.8:
+            confidence += 0.2
+        elif importance >= 0.6:
+            confidence += 0.1
+
+        if len(new_content) >= 20:
+            confidence += 0.1
+
+        if best_match:
+            score = best_match.get("score", 0)
+            if score > 0.9:
+                confidence = max(confidence, 0.95)
+            elif score > 0.7:
+                confidence += 0.1
+
+        new_lower = new_content.lower()
+        for new_kw, old_kw in self.contradiction_keywords:
+            if new_kw in new_lower:
+                confidence -= 0.15
+                break
+
+        for keyword in self.obsolete_keywords:
+            if keyword in new_lower:
+                confidence -= 0.2
+                break
+
+        return min(max(confidence, 0.0), 1.0)
 
     def _classify_operation(self, new_content: str, old_content: str) -> str:
         """判断操作类型"""

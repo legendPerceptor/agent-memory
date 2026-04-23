@@ -40,6 +40,14 @@ class HybridRAG:
         # 关键词权重
         self.keyword_boost_factor = 1.5  # 每个匹配关键词的 boost
         
+        # 人类反馈权重
+        self.human_rating_boost = 0.1  # 每个正面评价的 boost
+        self.human_rating_penalty = 0.2  # 每个负面评价的 penalty
+        
+        # 反馈驱动的参数自适应
+        self._relevance_feedback_history = []  # (query, memory_id, relevant)
+        self._adjustment_window = 50  # 最近 N 条反馈用于调参
+        
         # 停用词（简单版）
         self.stopwords = {
             "的", "是", "在", "有", "和", "了", "我", "你", "他", "她",
@@ -226,8 +234,17 @@ class HybridRAG:
             # 重要性权重
             importance = mem.get("importance", 0.5)
             
-            # 混合分数 = 向量分数 * 时间衰减 * 关键词 boost * 重要性
-            hybrid_score = vector_score * temporal_decay * keyword_boost * importance
+            # 人类评价信号
+            human_rating = mem.get("human_rating", 0)
+            if human_rating > 0:
+                rating_factor = 1.0 + human_rating * self.human_rating_boost
+            elif human_rating < 0:
+                rating_factor = max(0.1, 1.0 + human_rating * self.human_rating_penalty)
+            else:
+                rating_factor = 1.0
+            
+            # 混合分数 = 向量分数 * 时间衰减 * 关键词 boost * 重要性 * 人类评价
+            hybrid_score = vector_score * temporal_decay * keyword_boost * importance * rating_factor
             
             # 添加分数详情
             mem_copy = mem.copy()
@@ -236,7 +253,8 @@ class HybridRAG:
                 "vector": vector_score,
                 "temporal_decay": temporal_decay,
                 "keyword_boost": keyword_boost,
-                "importance": importance
+                "importance": importance,
+                "human_rating_factor": rating_factor
             }
             
             scored_results.append(mem_copy)
@@ -262,9 +280,55 @@ class HybridRAG:
             "hybrid_rag": {
                 "decay_rate": self.decay_rate,
                 "half_life_days": self.half_life_days,
-                "keyword_boost_factor": self.keyword_boost_factor
+                "keyword_boost_factor": self.keyword_boost_factor,
+                "human_rating_boost": self.human_rating_boost,
+                "human_rating_penalty": self.human_rating_penalty,
+                "feedback_history_size": len(self._relevance_feedback_history)
             }
         }
+
+    def submit_relevance_feedback(self, query: str, memory_id: str, relevant: bool) -> None:
+        """
+        提交检索相关性反馈
+        
+        Args:
+            query: 查询文本
+            memory_id: 记忆 ID
+            relevant: 是否相关
+        """
+        self._relevance_feedback_history.append({
+            "query": query,
+            "memory_id": memory_id,
+            "relevant": relevant,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        if len(self._relevance_feedback_history) > self._adjustment_window * 2:
+            self._relevance_feedback_history = self._relevance_feedback_history[-self._adjustment_window:]
+        
+        self._adjust_parameters()
+        
+        print(f"📝 检索反馈已记录: query='{query[:30]}...' memory={memory_id} relevant={relevant}")
+
+    def _adjust_parameters(self) -> None:
+        """基于反馈历史自适应调整检索参数"""
+        if len(self._relevance_feedback_history) < 10:
+            return
+        
+        recent = self._relevance_feedback_history[-self._adjustment_window:]
+        relevant_count = sum(1 for f in recent if f["relevant"])
+        total = len(recent)
+        relevance_rate = relevant_count / total if total > 0 else 0.5
+        
+        if relevance_rate < 0.3:
+            self.keyword_boost_factor = min(2.0, self.keyword_boost_factor + 0.1)
+            self.decay_rate = min(0.2, self.decay_rate + 0.01)
+            print(f"🔧 检索参数已调整: keyword_boost={self.keyword_boost_factor:.2f}, decay_rate={self.decay_rate:.3f} (相关性低，增强过滤)")
+        
+        elif relevance_rate > 0.8:
+            self.keyword_boost_factor = max(1.0, self.keyword_boost_factor - 0.05)
+            self.decay_rate = max(0.05, self.decay_rate - 0.005)
+            print(f"🔧 检索参数已调整: keyword_boost={self.keyword_boost_factor:.2f}, decay_rate={self.decay_rate:.3f} (相关性高，放宽过滤)")
 
 
 def main():
