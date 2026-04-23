@@ -50,7 +50,10 @@ class OpenClawMemoryService:
         self.memory_file = self.workspace / "MEMORY.md"
         self.memory_dir = self.workspace / "memory"
 
-        self.tiered = TieredMemory()
+        from .memory_service import MemoryService
+        self.service = MemoryService()
+        
+        self.tiered = TieredMemory(self.service)
         self.evolver = MemoryEvolver(self.tiered)
         self.feedback = HumanFeedbackManager(self.tiered)
         self.initialized = False
@@ -299,6 +302,11 @@ class OpenClawMemoryService:
 
     def confirm_candidate(self, candidate_id: str, source: str = "api") -> str:
         """确认候选项，写入记忆系统"""
+        # NOOP 候选项不在队列中，直接返回已有记忆 ID
+        candidate = self.feedback.candidate_queue.get(candidate_id)
+        if candidate and candidate.operation == "NOOP" and candidate.target_memory_id:
+            print(f"⏭️  重复记忆，直接返回已有 ID: {candidate.target_memory_id}")
+            return candidate.target_memory_id
         return self.feedback.confirm_candidate(candidate_id, source)
 
     def modify_candidate(self, candidate_id: str, content: str = None, importance: float = None, memory_type: str = None, reason: str = "", source: str = "api") -> str:

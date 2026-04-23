@@ -398,6 +398,7 @@ class HumanFeedbackManager:
     def confirm_candidate(self, candidate_id: str, source: str = "api") -> str:
         candidate = self.candidate_queue.get(candidate_id)
         if not candidate:
+            # NOOP 候选不会被加入队列，直接返回已有记忆 ID
             raise ValueError(f"候选项不存在: {candidate_id}")
         
         if candidate.status != "pending":
@@ -437,6 +438,7 @@ class HumanFeedbackManager:
     ) -> str:
         candidate = self.candidate_queue.get(candidate_id)
         if not candidate:
+            # NOOP 候选不会被加入队列，直接返回已有记忆 ID
             raise ValueError(f"候选项不存在: {candidate_id}")
         
         if candidate.status != "pending":
@@ -480,6 +482,7 @@ class HumanFeedbackManager:
     def reject_candidate(self, candidate_id: str, reason: str = "", source: str = "api") -> None:
         candidate = self.candidate_queue.get(candidate_id)
         if not candidate:
+            # NOOP 候选不会被加入队列，直接返回已有记忆 ID
             raise ValueError(f"候选项不存在: {candidate_id}")
         
         if candidate.status != "pending":
@@ -524,6 +527,10 @@ class HumanFeedbackManager:
         return self.candidate_queue.get_pending(limit)
     
     def _write_candidate(self, candidate: MemoryCandidate) -> str:
+        if candidate.operation == "NOOP" and candidate.target_memory_id:
+            # 重复记忆，返回已有记忆的 ID，不写入新内容
+            return candidate.target_memory_id
+        
         if candidate.operation == "DELETE" and candidate.target_memory_id:
             self._delete_memory(candidate.target_memory_id)
             return candidate.target_memory_id

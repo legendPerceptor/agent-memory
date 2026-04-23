@@ -223,96 +223,34 @@ class RecallMemory:
     - 完整历史记录
     - 向量索引
     - 语义检索
+
+    内部使用 MemoryService 作为底层存储引擎
     """
 
-    def __init__(self):
-        self.client = None
-        self.use_qdrant = False
+    def __init__(self, memory_service=None):
+        from .memory_service import MemoryService
+        self.service = memory_service or MemoryService()
+        self.use_qdrant = self.service.use_qdrant
+    
+    @property
+    def client(self):
+        """方便访问 qdrant client"""
+        return self.service.client
 
-        if QDRANT_AVAILABLE:
-            try:
-                self.client = QdrantClient(
-                    host=QDRANT_HOST,
-                    port=QDRANT_PORT,
-                    timeout=10,
-                    check_compatibility=False
-                )
-                self._init_collection()
-                self.use_qdrant = True
-                print(f"✅ Recall Memory 连接成功: {QDRANT_HOST}:{QDRANT_PORT}")
-            except Exception as e:
-                print(f"⚠️  Recall Memory 连接失败: {e}")
-
-        # 回退：文件存储
         self.memory_file = MEMORY_DIR / "recall_memory.json"
         self.memories = self._load_memories()
 
-    def _init_collection(self):
-        """初始化 Qdrant collection"""
-        try:
-            collections = self.client.get_collections().collections
-            exists = any(c.name == COLLECTION_NAME for c in collections)
-
-            if not exists:
-                self.client.create_collection(
-                    collection_name=COLLECTION_NAME,
-                    vectors_config=VectorParams(
-                        size=VECTOR_SIZE,
-                        distance=Distance.COSINE
-                    )
-                )
-                print(f"✅ 创建 collection: {COLLECTION_NAME}")
-        except Exception as e:
-            raise Exception(f"初始化 collection 失败: {e}")
-
     def _load_memories(self) -> List[Dict]:
-        """从文件加载记忆"""
         if self.memory_file.exists():
-            return json.loads(self.memory_file.read_text())
+            try:
+                return json.loads(self.memory_file.read_text())
+            except:
+                return []
         return []
 
     def _save_memories(self):
-        """保存记忆到文件"""
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(json.dumps(self.memories, indent=2, ensure_ascii=False))
-
-    def _get_embedding(self, text: str) -> List[float]:
-        """获取文本的向量表示"""
-        import os
-        import httpx
-
-        if OPENAI_AVAILABLE and OPENAI_API_KEY:
-            try:
-                client = OpenAI(
-                    api_key=OPENAI_API_KEY,
-                    base_url="https://api.openai.com/v1",
-                    http_client=httpx.Client(proxy=os.getenv("HTTPS_PROXY", "")),
-                    timeout=30
-                )
-
-                response = client.embeddings.create(
-                    model=OPENAI_EMBEDDING_MODEL,
-                    input=text
-                )
-
-                return response.data[0].embedding
-            except Exception as e:
-                print(f"⚠️  OpenAI embedding 失败: {e}")
-
-        # 回退：伪向量
-        hash_obj = hashlib.sha256(text.encode())
-        hash_bytes = hash_obj.digest()
-        vector = []
-        for i in range(VECTOR_SIZE):
-            byte_idx = i % len(hash_bytes)
-            next_byte_idx = (byte_idx + 1) % len(hash_bytes)
-            vector.append((hash_bytes[byte_idx] + hash_bytes[next_byte_idx]) / 510.0)
-
-        magnitude = sum(v ** 2 for v in vector) ** 0.5
-        if magnitude > 0:
-            vector = [v / magnitude for v in vector]
-
-        return vector
 
     def remember(
         self,
@@ -343,9 +281,10 @@ class RecallMemory:
 
         if self.use_qdrant:
             try:
-                vector = self._get_embedding(content)
+                vector = self.service._get_embedding(content)
 
-                self.client.upsert(
+                from qdrant_client.models import PointStruct
+                self.service.client.upsert(
                     collection_name=COLLECTION_NAME,
                     points=[
                         PointStruct(
@@ -365,7 +304,7 @@ class RecallMemory:
             self._save_memories()
             print(f"✅ 回忆已存储到文件: {short_id}")
 
-        return short_id
+        return memory_id
 
     def recall(
         self,
@@ -378,7 +317,7 @@ class RecallMemory:
 
         if self.use_qdrant:
             try:
-                vector = self._get_embedding(query)
+                vector = self.service._get_embedding(query)
 
                 from qdrant_client.models import Filter, FieldCondition, Range
 
@@ -391,7 +330,7 @@ class RecallMemory:
                         )
                     )
 
-                results = self.client.query_points(
+                results = self.service.client.query_points(
                     collection_name=COLLECTION_NAME,
                     query=vector,
                     limit=limit,
@@ -413,7 +352,6 @@ class RecallMemory:
             except Exception as e:
                 print(f"⚠️  Qdrant 检索失败: {e}")
 
-        # 回退：文件搜索
         scored_memories = []
         query_words = set(query.lower().split())
 
@@ -441,22 +379,7 @@ class RecallMemory:
 
     def stats(self) -> Dict:
         """统计信息"""
-        if self.use_qdrant:
-            try:
-                info = self.client.get_collection(collection_name=COLLECTION_NAME)
-                return {
-                    "storage": "qdrant",
-                    "count": info.points_count,
-                    "status": info.status.value
-                }
-            except:
-                pass
-
-        return {
-            "storage": "file",
-            "count": len(self.memories),
-            "file": str(self.memory_file)
-        }
+        return self.service.stats()
 
     def rate_memory(self, memory_id: str, rating: int) -> None:
         """评价记忆（+1 有用 / -1 无用）"""
@@ -472,7 +395,7 @@ class RecallMemory:
 
         if self.use_qdrant:
             try:
-                self.client.set_payload(
+                self.service.client.set_payload(
                     collection_name=COLLECTION_NAME,
                     payload={
                         "human_rating": rating,
@@ -502,7 +425,7 @@ class RecallMemory:
                     payload["content"] = content
                 if importance is not None:
                     payload["importance"] = importance
-                self.client.set_payload(
+                self.service.client.set_payload(
                     collection_name=COLLECTION_NAME,
                     payload=payload,
                     points=[memory_id]
@@ -523,7 +446,7 @@ class RecallMemory:
 
         if self.use_qdrant:
             try:
-                self.client.set_payload(
+                self.service.client.set_payload(
                     collection_name=COLLECTION_NAME,
                     payload={"protected": protected},
                     points=[memory_id]
@@ -585,10 +508,13 @@ class TieredMemory:
     整合四个层级的记忆存储
     """
 
-    def __init__(self):
+    def __init__(self, memory_service=None):
+        from .memory_service import MemoryService
+        self.service = memory_service or MemoryService()
+        
         self.core = CoreMemory()
         self.working = WorkingMemory()
-        self.recall_mem = RecallMemory()
+        self.recall_mem = RecallMemory(self.service)
         self.archival = ArchivalMemory()
 
         print("✅ 分层记忆系统已初始化")

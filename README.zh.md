@@ -351,18 +351,18 @@ agent-memory/
 ├── agent_memory/
 │   ├── __init__.py              # 模块入口
 │   ├── config.py                # 配置管理
-│   ├── memory_service.py        # 核心记忆服务
-│   ├── tiered_memory.py         # 分层存储
+│   ├── memory_service.py        # 底层向量存储原语（Qdrant + 文件回退）
+│   ├── tiered_memory.py         # 分层存储（内部使用 MemoryService）
 │   ├── memory_evolver.py        # 记忆演化
 │   ├── human_feedback.py        # Human-in-the-Loop 反馈系统
-│   ├── hybrid_rag.py            # 混合检索
+│   ├── hybrid_rag.py            # 混合检索（内部使用 MemoryService）
 │   ├── atomic_notes.py          # Zettelkasten 原子笔记
 │   ├── knowledge_graph.py       # 知识图谱
 │   ├── enhanced_memory_graph.py # 图谱增强记忆
 │   ├── memory_compressor.py     # 记忆压缩
 │   ├── memory_optimizer.py      # 性能优化
 │   ├── batch_embedding.py       # 批量 Embedding
-│   └── integrate.py             # OpenClaw 集成
+│   └── integrate.py             # OpenClaw 集成入口
 │
 ├── scripts/
 │   ├── init_memory.py           # OpenClaw 启动初始化
@@ -372,6 +372,35 @@ agent-memory/
 ├── docker-compose.yml           # Docker 配置
 └── README.md                    # 本文件
 ```
+
+## 🔗 架构关系
+
+```
+OpenClawMemoryService (integrate.py)
+    │
+    ├── MemoryService (memory_service.py)  ← 底层向量存储原语
+    │       └── Qdrant / 文件回退
+    │
+    ├── TieredMemory (tiered_memory.py)
+    │       ├── CoreMemory (JSON)
+    │       ├── WorkingMemory (内存)
+    │       ├── RecallMemory → 内部使用 MemoryService
+    │       └── ArchivalMemory (JSON)
+    │
+    ├── MemoryEvolver (memory_evolver.py)
+    │       └── TieredMemory
+    │
+    └── HumanFeedbackManager (human_feedback.py)
+            └── TieredMemory
+
+HybridRAG (hybrid_rag.py)
+    └── MemoryService
+
+ZettelkastenMemory (atomic_notes.py)
+    └── HybridRAG → MemoryService
+```
+
+**关键设计**：`MemoryService` 是唯一的底层向量存储原语，`RecallMemory`、`HybridRAG` 等组件内部都委托给它，避免重复的 Qdrant 连接和 embedding 逻辑。
 
 ---
 

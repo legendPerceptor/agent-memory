@@ -45,7 +45,7 @@ class MemoryEvolver:
         ]
 
         self.obsolete_keywords = [
-            "临时", "测试", "临时测试", "待删除"
+            "取消", "不再", "停止使用", "删除配置", "移除设置"
         ]
 
     def evolve(self, new_content: str, importance: float = 0.5, dry_run: bool = False) -> Union[Tuple[str, str], 'MemoryCandidate']:
@@ -91,7 +91,7 @@ class MemoryEvolver:
                     importance=importance,
                     confidence=1.0,
                     operation="NOOP",
-                    target_memory_id=best_match["id"]
+                    target_memory_id=best_match.get("qdrant_id", best_match["id"])
                 )
             return ("NOOP", best_match["id"])
 
@@ -235,9 +235,9 @@ class MemoryEvolver:
             if new_kw in new_lower and old_kw in old_lower:
                 return "UPDATE"
 
-        # 2. 检查过时
+        # 2. 检查过时（新内容表示取消/替换某个旧事物）
         for keyword in self.obsolete_keywords:
-            if keyword in new_lower or keyword in old_lower:
+            if keyword in new_lower:
                 return "DELETE"
 
         # 3. 检查重复

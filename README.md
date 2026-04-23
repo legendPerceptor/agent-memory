@@ -351,18 +351,18 @@ agent-memory/
 ├── agent_memory/
 │   ├── __init__.py              # Module entry
 │   ├── config.py                # Configuration
-│   ├── memory_service.py        # Core memory service
-│   ├── tiered_memory.py         # Tiered storage
+│   ├── memory_service.py        # Low-level vector storage primitive (Qdrant + file fallback)
+│   ├── tiered_memory.py         # Tiered storage (uses MemoryService internally)
 │   ├── memory_evolver.py        # Memory evolution
 │   ├── human_feedback.py        # Human-in-the-Loop feedback system
-│   ├── hybrid_rag.py            # Hybrid retrieval
+│   ├── hybrid_rag.py            # Hybrid retrieval (uses MemoryService internally)
 │   ├── atomic_notes.py          # Zettelkasten atomic notes
 │   ├── knowledge_graph.py       # Knowledge graph
 │   ├── enhanced_memory_graph.py # Graph-enhanced memory
 │   ├── memory_compressor.py     # Memory compression
 │   ├── memory_optimizer.py      # Performance optimization
 │   ├── batch_embedding.py       # Batch embedding
-│   └── integrate.py             # OpenClaw integration
+│   └── integrate.py             # OpenClaw integration entry
 │
 ├── scripts/
 │   ├── init_memory.py           # OpenClaw startup initialization
@@ -372,6 +372,35 @@ agent-memory/
 ├── docker-compose.yml           # Docker configuration
 └── README.md                    # This file
 ```
+
+## 🔗 Architecture
+
+```
+OpenClawMemoryService (integrate.py)
+    │
+    ├── MemoryService (memory_service.py)  ← Low-level vector storage primitive
+    │       └── Qdrant / file fallback
+    │
+    ├── TieredMemory (tiered_memory.py)
+    │       ├── CoreMemory (JSON)
+    │       ├── WorkingMemory (in-memory)
+    │       ├── RecallMemory → uses MemoryService internally
+    │       └── ArchivalMemory (JSON)
+    │
+    ├── MemoryEvolver (memory_evolver.py)
+    │       └── TieredMemory
+    │
+    └── HumanFeedbackManager (human_feedback.py)
+            └── TieredMemory
+
+HybridRAG (hybrid_rag.py)
+    └── MemoryService
+
+ZettelkastenMemory (atomic_notes.py)
+    └── HybridRAG → MemoryService
+```
+
+**Key Design**: `MemoryService` is the single low-level vector storage primitive. `RecallMemory`, `HybridRAG`, and other components delegate to it, avoiding duplicate Qdrant connections and embedding logic.
 
 ---
 
