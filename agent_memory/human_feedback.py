@@ -565,45 +565,18 @@ class HumanFeedbackManager:
             raise ValueError("rating 必须是 -1, 0 或 1")
         
         recall = self.memory.recall_mem
-        found = False
+        recall.rate_memory(memory_id, rating)
         
-        for mem in recall.memories:
-            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
-                mem["human_rating"] = mem.get("human_rating", 0) + rating
-                mem["feedback_count"] = mem.get("feedback_count", 0) + 1
-                found = True
-                break
+        feedback_type = "relevance_up" if rating > 0 else "relevance_down"
+        feedback = MemoryFeedback(
+            feedback_id="",
+            memory_id=memory_id,
+            feedback_type=feedback_type,
+            source=source
+        )
+        self.feedback_store.save_feedback(feedback)
         
-        if not found and recall.use_qdrant:
-            try:
-                from qdrant_client.models import Payload
-                recall.client.set_payload(
-                    collection_name="agent_memories",
-                    payload={
-                        "human_rating": rating,
-                        "feedback_count": 1
-                    },
-                    points=[memory_id]
-                )
-                found = True
-            except Exception as e:
-                print(f"⚠️ Qdrant 更新失败: {e}")
-        
-        if found:
-            recall._save_memories()
-            
-            feedback_type = "relevance_up" if rating > 0 else "relevance_down"
-            feedback = MemoryFeedback(
-                feedback_id="",
-                memory_id=memory_id,
-                feedback_type=feedback_type,
-                source=source
-            )
-            self.feedback_store.save_feedback(feedback)
-            
-            print(f"⭐ 记忆已评价: {memory_id} → {rating:+d}")
-        else:
-            print(f"⚠️ 记忆不存在: {memory_id}")
+        print(f"⭐ 记忆已评价: {memory_id} → {rating:+d}")
     
     def submit_relevance_feedback(
         self,
@@ -630,7 +603,7 @@ class HumanFeedbackManager:
         queue = []
         recall = self.memory.recall_mem
         
-        for mem in recall.memories:
+        for mem in recall.get_all_memories():
             reasons = []
             
             confidence = mem.get("confidence", 0.7)
@@ -673,7 +646,7 @@ class HumanFeedbackManager:
     def detect_contradictions(self) -> List[Tuple[Dict, Dict]]:
         contradictions = []
         recall = self.memory.recall_mem
-        memories = recall.memories
+        memories = recall.get_all_memories()
         
         for i, mem1 in enumerate(memories):
             for mem2 in memories[i+1:]:
@@ -753,27 +726,11 @@ class HumanFeedbackManager:
     
     def _update_memory(self, memory_id: str, content: str = None, importance: float = None):
         recall = self.memory.recall_mem
-        
-        for mem in recall.memories:
-            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
-                if content is not None:
-                    mem["content"] = content
-                if importance is not None:
-                    mem["importance"] = importance
-                mem["reviewed"] = True
-                break
-        
-        recall._save_memories()
+        recall.update_memory(memory_id, content=content, importance=importance)
     
     def _set_protected(self, memory_id: str, protected: bool):
         recall = self.memory.recall_mem
-        
-        for mem in recall.memories:
-            if mem.get("id") == memory_id or mem.get("qdrant_id") == memory_id:
-                mem["protected"] = protected
-                break
-        
-        recall._save_memories()
+        recall.set_protected(memory_id, protected)
     
     def get_parameter_suggestions(self) -> Dict:
         return self.analyzer.suggest_parameter_adjustments()

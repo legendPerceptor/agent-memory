@@ -277,6 +277,25 @@ class RecallMemory:
         self.memory_file.parent.mkdir(parents=True, exist_ok=True)
         self.memory_file.write_text(json.dumps(self.memories, indent=2, ensure_ascii=False))
 
+    def get_all_memories(self) -> List[Dict]:
+        """获取所有记忆（包括仅在 Qdrant 中的），用于审核队列"""
+        if self.use_qdrant:
+            try:
+                results, _ = self.service.client.scroll(
+                    collection_name=COLLECTION_NAME,
+                    limit=1000,
+                    with_payload=True
+                )
+                memories = []
+                for r in results:
+                    mem = dict(r.payload)
+                    mem["id"] = str(r.id)  # Qdrant point id as id
+                    memories.append(mem)
+                return memories
+            except Exception as e:
+                print(f"⚠️ Qdrant scroll 失败，回退到文件: {e}")
+        return self.memories
+
     def remember(
         self,
         content: str,

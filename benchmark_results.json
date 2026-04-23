@@ -1,0 +1,23 @@
+{
+  "basic": {
+    "method": "basic",
+    "avg_latency_ms": 0.0576178232828776,
+    "avg_results": 0.6666666666666666
+  },
+  "hybrid_rag": {
+    "method": "hybrid_rag",
+    "avg_latency_ms": 0.1502831776936849,
+    "avg_results": 0.6666666666666666,
+    "temporal_filtered": 0,
+    "keyword_boosted": 1
+  },
+  "zettelkasten": {
+    "method": "zettelkasten",
+    "store_time_ms": 51.23448371887207,
+    "decomposed_notes": 1,
+    "avg_latency_ms": 0.6852944691975912,
+    "avg_results": 2.0,
+    "avg_links": 0.0
+  },
+  "timestamp": "2026-04-02 01:34:31"
+}
