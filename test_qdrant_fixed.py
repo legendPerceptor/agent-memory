@@ -20,7 +20,7 @@ def test_connection():
     try:
         print("🔌 连接 Qdrant...")
         client = QdrantClient(
-            host="aicreatorvault-qdrant-1",
+            host="agent-memory-qdrant",
             port=6333,
             timeout=10
         )

@@ -293,7 +293,9 @@ class RecallMemory:
                     memories.append(mem)
                 return memories
             except Exception as e:
-                print(f"⚠️ Qdrant scroll 失败，回退到文件: {e}")
+                print(f"⚠️ Qdrant scroll 失败: {e}")
+                # 不要静默降级，审核队列需要完整数据
+                raise RuntimeError(f"无法从 Qdrant 获取记忆: {e}") from e
         return self.memories
 
     def remember(
@@ -507,11 +509,19 @@ class RecallMemory:
 
         if self.use_qdrant:
             try:
+                # 先读取当前值，再追加（与文件行为一致）
+                current = self.service.client.retrieve(
+                    collection_name=COLLECTION_NAME,
+                    ids=[memory_id]
+                )
+                existing = current[0].payload if current else {}
+                new_rating = existing.get("human_rating", 0) + rating
+                new_count = existing.get("feedback_count", 0) + 1
                 self.service.client.set_payload(
                     collection_name=COLLECTION_NAME,
                     payload={
-                        "human_rating": rating,
-                        "feedback_count": 1
+                        "human_rating": new_rating,
+                        "feedback_count": new_count
                     },
                     points=[memory_id]
                 )
